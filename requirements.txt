@@ -1,0 +1,13 @@
+apache-airflow==2.7.3
+apache-airflow-providers-mysql==3.3.0
+PyMySQL
+selenium
+webdriver-manager
+beautifulsoup4
+lxml
+pandas
+openpyxl
+konlpy
+jpype1
+psutil
+undetected-chromedriver
