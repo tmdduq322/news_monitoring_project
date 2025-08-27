@@ -1,10 +1,17 @@
-# process_data.py
 import os
 import re
 import pandas as pd
 from datetime import datetime
 import argparse
+# 'process_file.py'의 위치가 'scripts' 폴더와 다른 'processing' 폴더에 있으므로 경로를 추가해줘야 할 수 있습니다.
+# 만약 ModuleNotFoundError가 발생하면 아래 경로 설정을 활성화하세요.
+# import sys
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from processing.process_file import filter_untrusted_posts, filter_da
+
+# --- 1. 프로젝트 절대 경로 설정 (이전과 동일) ---
+SCRIPT_PATH = os.path.abspath(__file__)
+PROJECT_ROOT_DIR = os.path.dirname(os.path.dirname(SCRIPT_PATH))
 
 def process_data(
     input_csv_path,
@@ -15,11 +22,9 @@ def process_data(
 ):
     os.makedirs(os.path.dirname(output_excel_path), exist_ok=True)
 
-    # 1. 검색어 목록 로딩
     pd_search = pd.read_excel(search_excel_path, sheet_name='검색어 목록')
     searchs = pd_search['검색어명']
 
-    # 2. CSV 로딩
     try:
         df = pd.read_csv(input_csv_path, encoding="utf-8")
     except UnicodeDecodeError:
@@ -30,7 +35,6 @@ def process_data(
     df["게시물 제목"] = df["게시물 제목"].fillna("").astype(str)
     df["게시물 내용"] = df["게시물 내용"].fillna("").astype(str)
 
-    # 3. 검색어 필터
     df1 = df[
         (df.apply(
             lambda x: any(s.lower() in str(x['게시물 제목']).lower() or s.lower() in str(x['게시물 내용']).lower() for s in searchs),
@@ -40,27 +44,25 @@ def process_data(
         (~df['게시물 제목'].str.contains('신춘문예', na=False, case=False)) &
         (~df['계정명'].fillna('').str.contains('뽐뿌뉴스', case=False))
     ]
-
-    # 4. 날짜 필터
     df2 = df1[
         (df1['게시물 등록일자'].dt.year == target_year) &
         (df1['게시물 등록일자'].dt.month == target_month)
     ]
-
-    # 5. 중복 제거
     df3 = df2.drop_duplicates(subset=['게시물 URL'])
 
-    # 6. 비신탁사/도메인 필터
+    # --- 2. config 파일 경로도 절대 경로로 수정 ---
+    # 프로젝트 루트 경로와 config 파일의 상대 경로를 합쳐 절대 경로를 만듭니다.
+    untrusted_file_path = os.path.join(PROJECT_ROOT_DIR, "config", "비신탁사_저작권문구+도메인주소.xlsx")
+    trusted_file_path = os.path.join(PROJECT_ROOT_DIR, "config", "process_keywords.xlsx")
+
     df_filtered = filter_untrusted_posts(
         df3,
-        untrusted_file="config/수집 제외 도메인 주소.xlsx",
-        trusted_file="config/process_keywords.xlsx"
+        untrusted_file=untrusted_file_path,
+        trusted_file=trusted_file_path
     )
+    # --- 여기까지 수정 ---
 
-    # 7. '다.' 필터 + 만평 제거
     filtered_df = filter_da(df_filtered)
-
-    # 8. 저장
     filtered_df.to_excel(output_excel_path, index=False)
     print(f"✅ 전처리 완료: {output_excel_path}")
     print(f"→ 입력: {len(df)}개 / 전처리 후: {len(filtered_df)}개 / 제거: {len(df) - len(filtered_df)}개")
@@ -78,10 +80,15 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # --- 3. input/output 경로 절대 경로로 변환 (이전과 동일) ---
+    input_csv = args.input_csv if os.path.isabs(args.input_csv) else os.path.join(PROJECT_ROOT_DIR, args.input_csv)
+    output_excel = args.output_excel if os.path.isabs(args.output_excel) else os.path.join(PROJECT_ROOT_DIR, args.output_excel)
+    search_excel = args.search_excel
+
     process_data(
-        input_csv_path=args.input_csv,
-        output_excel_path=args.output_excel,
-        search_excel_path=args.search_excel,
+        input_csv_path=input_csv,
+        output_excel_path=output_excel,
+        search_excel_path=search_excel,
         target_year=args.year,
         target_month=args.month
     )

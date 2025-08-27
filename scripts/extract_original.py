@@ -7,6 +7,9 @@ from extraction.core_utils import log
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+
 today = datetime.now().strftime("%y%m%d")
 
 if __name__ == "__main__":

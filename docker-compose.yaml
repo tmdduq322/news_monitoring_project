@@ -78,6 +78,7 @@ services:
   airflow-worker:
     <<: *airflow-common
     command: celery worker
+    shm_size: '2gb'
 
   airflow-triggerer:
     <<: *airflow-common

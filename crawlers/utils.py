@@ -5,17 +5,14 @@ import pandas as pd
 from datetime import datetime
 import undetected_chromedriver as uc
 import shutil
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options
+from selenium import webdriver
 
 # 실행날짜 변수 및 폴더 생성
 today = datetime.now().strftime("%y%m%d")
 if not os.path.exists(f'log'):
     os.makedirs(f'log')
-
-import undetected_chromedriver as uc
-import shutil
-import os
-import logging
-
 
 def setup_driver():
     logging.info("웹드라이버 시작")
@@ -30,7 +27,7 @@ def setup_driver():
         shutil.copy(original_path, safe_path)
         os.chmod(safe_path, 0o755)
 
-    options = uc.ChromeOptions()
+    options = Options()
     options.binary_location = "/usr/bin/chromium"
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
     options.add_argument(f"user-agent={user_agent}")
@@ -40,12 +37,8 @@ def setup_driver():
     options.add_argument('--headless')
     options.add_argument('--disable-blink-features=AutomationControlled')
 
-    driver = uc.Chrome(
-        options=options,
-        driver_executable_path=safe_path,
-        patcher_executable_path=safe_path,
-        use_subprocess=True
-    )
+    service = ChromeService()
+    driver = webdriver.Chrome(service=service, options=options)
 
     return driver
 
