@@ -11,9 +11,9 @@ default_args = {
 with DAG(
     dag_id='news_copy_detection_pipeline',
     default_args=default_args,
-    start_date=datetime(2025, 8, 19),
+    start_date=datetime(2025, 11, 21),
     schedule='@daily',
-    catchup=True,
+    catchup=False,
     tags=['news', 'copy-detection'],
 ) as dag:
 

@@ -50,17 +50,18 @@ def process_data(
     ]
     df3 = df2.drop_duplicates(subset=['게시물 URL'])
 
-    # --- 2. config 파일 경로도 절대 경로로 수정 ---
-    # 프로젝트 루트 경로와 config 파일의 상대 경로를 합쳐 절대 경로를 만듭니다.
-    untrusted_file_path = os.path.join(PROJECT_ROOT_DIR, "config", "비신탁사_저작권문구+도메인주소.xlsx")
-    trusted_file_path = os.path.join(PROJECT_ROOT_DIR, "config", "process_keywords.xlsx")
+    # # --- 2. config 파일 경로도 절대 경로로 수정 ---
+    # # 프로젝트 루트 경로와 config 파일의 상대 경로를 합쳐 절대 경로를 만듭니다.
+    # untrusted_file_path = os.path.join(PROJECT_ROOT_DIR, "config", "비신탁사_저작권문구+도메인주소.xlsx")
+    # trusted_file_path = os.path.join(PROJECT_ROOT_DIR, "config", "process_keywords.xlsx")
 
-    df_filtered = filter_untrusted_posts(
-        df3,
-        untrusted_file=untrusted_file_path,
-        trusted_file=trusted_file_path
-    )
-    # --- 여기까지 수정 ---
+    # [수정] 비신탁사 필터링을 건너뛰고 모든 데이터를 유지합니다.
+    # df_filtered = filter_untrusted_posts(
+    #     df3,
+    #     untrusted_file=untrusted_file_path,
+    #     trusted_file=trusted_file_path
+    # )
+    df_filtered = df3  # 필터링 없이 그대로 전달
 
     filtered_df = filter_da(df_filtered)
     filtered_df.to_excel(output_excel_path, index=False)

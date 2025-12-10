@@ -20,12 +20,13 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from dotenv import load_dotenv
+from webdriver_manager.chrome import ChromeDriverManager # 추가됨
+
 load_dotenv()
 # 날짜
 today = datetime.now().strftime("%y%m%d")
 
-# 드라이버 경로 (본인 PC에 맞게 수정)
-driver_path = r"C:\chromedriver-win64\chromedriver.exe"
+# [수정] 상단에 있던 에러 유발 코드(driver = ...) 삭제함
 
 okt = Okt()
 
@@ -51,7 +52,7 @@ def log(msg, index=None):
 def create_driver(index=None):
     try:
         options = Options()
-        # options.add_argument("--headless=new")
+        # options.add_argument("--headless=new") # 필요시 주석 해제
         options.add_argument("--disable-background-networking")
         options.add_argument("--disable-sync")
         options.add_argument("--disable-default-apps")
@@ -61,8 +62,7 @@ def create_driver(index=None):
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-)
+        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36")
 
         prefs = {
             "profile.managed_default_content_settings.images": 2,
@@ -76,7 +76,10 @@ def create_driver(index=None):
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
 
-        driver = webdriver.Chrome(service=Service(driver_path), options=options)
+        # [수정] webdriver_manager를 사용하여 자동 설치 및 연결
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
             "source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
         })
@@ -376,18 +379,19 @@ def search_news_with_api(queries, driver, client_id, client_secret, max_results=
                         log(f"⚠️ OID 추출 실패 → 스킵: {link}", index)
                         continue
 
-                    if "n.news.naver.com" in link:
-                        if oid not in trusted_news_oids:
-                            # log(f"🚫 비신탁 뉴스 언론 (oid={oid}) → {link}", index)
-                            continue
-                    elif "sports.naver.com" in link:
-                        if oid not in trusted_sports_oids:
-                            # log(f"🚫 비신탁 스포츠 언론 (oid={oid}) → {link}", index)
-                            continue
-                    elif "entertain.naver.com" in link:
-                        if oid not in trusted_entertain_oids:
-                            # log(f"🚫 비신탁 엔터 언론 (oid={oid}) → {link}", index)
-                            continue
+                    # [수정] 아래의 OID(신탁사) 필터링 로직을 주석 처리하여 모든 언론사를 수집하도록 변경
+                    # if "n.news.naver.com" in link:
+                    #     if oid not in trusted_news_oids:
+                    #         # log(f"🚫 비신탁 뉴스 언론 (oid={oid}) → {link}", index)
+                    #         continue
+                    # elif "sports.naver.com" in link:
+                    #     if oid not in trusted_sports_oids:
+                    #         # log(f"🚫 비신탁 스포츠 언론 (oid={oid}) → {link}", index)
+                    #         continue
+                    # elif "entertain.naver.com" in link:
+                    #     if oid not in trusted_entertain_oids:
+                    #         # log(f"🚫 비신탁 엔터 언론 (oid={oid}) → {link}", index)
+                    #         continue
 
                 body, new_driver = get_news_article_body(link, driver, index=index)
                 if new_driver != driver:
@@ -405,4 +409,3 @@ def search_news_with_api(queries, driver, client_id, client_secret, max_results=
             continue
 
     return results
-
