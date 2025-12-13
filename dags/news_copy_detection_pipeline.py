@@ -19,7 +19,8 @@ with DAG(
 
     crawl = BashOperator(
         task_id='crawl_all_sites',
-        bash_command='PYTHONPATH=/opt/airflow '
+        bash_command='export PYTHONUNBUFFERED=1; '
+                     'PYTHONPATH=/opt/airflow '
                      'python3 /opt/airflow/scripts/crawl_all_sites.py '
                      '--site "뽐뿌" '
                      '--start_date {{ ds }} '

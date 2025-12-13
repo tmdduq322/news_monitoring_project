@@ -6,12 +6,15 @@ import pymysql
 import argparse
 import os
 
-# MySQL 연결 정보
-user = "root"
-password = "1234"
-host = "mysql"  # Docker 내부 서비스명
+# [추가] Airflow 기본 경로 설정
+AIRFLOW_HOME = "/opt/airflow"
+
+# AWS 연결 정보
+user = os.getenv("DB_USER")
+password = os.getenv("DB_PASSWORD")
+host = os.getenv("DB_HOST") 
 port = 3306
-database = "article_db"
+database = "news-monitoring-db" 
 
 def summarize(text, limit=10000):
     if isinstance(text, str) and len(text) > limit:
@@ -19,6 +22,19 @@ def summarize(text, limit=10000):
     return text
 
 def save_excel_to_mysql(filepath, table_name="news_posts"):
+    # [수정] 입력된 파일 경로가 상대 경로라면 절대 경로로 변환
+    if not os.path.isabs(filepath):
+        filepath = os.path.join(AIRFLOW_HOME, filepath)
+    
+    print(f"📂 [DB 저장] 읽을 파일 경로: {filepath}")
+
+    # 파일 존재 여부 확인 (디버깅용)
+    if not os.path.exists(filepath):
+        print(f"❌ 파일을 찾을 수 없습니다: {filepath}")
+        # 여기서 에러를 내지 않고 리턴하거나, raise FileNotFoundError 할 수 있음
+        # 명확한 에러 메시지를 위해 raise 사용 권장
+        raise FileNotFoundError(f"파일이 없습니다: {filepath}")
+
     df = pd.read_excel(filepath) if filepath.endswith(".xlsx") else pd.read_csv(filepath)
     if "게시물 내용" in df.columns:
         df["게시물 내용"] = df["게시물 내용"].apply(summarize)
@@ -38,6 +54,7 @@ def save_excel_to_mysql(filepath, table_name="news_posts"):
         Column("게시물 내용", LONGTEXT),
         Column("게시물 등록일자", VARCHAR(50)),
         Column("계정명", VARCHAR(100)),
+        Column("수집시간", VARCHAR(50)),
         Column("원본기사", VARCHAR(500)),
         Column("복사율", FLOAT),
     )

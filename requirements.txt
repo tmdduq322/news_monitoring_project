@@ -1,6 +1,5 @@
-apache-airflow==2.7.3
 apache-airflow-providers-mysql==3.3.0
-PyMySQL
+pymysql
 selenium
 webdriver-manager
 beautifulsoup4
@@ -12,3 +11,5 @@ jpype1
 psutil
 undetected-chromedriver
 scikit-learn
+s3fs
+cryptography

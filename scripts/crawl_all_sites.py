@@ -5,6 +5,8 @@ import pandas as pd
 from datetime import datetime
 from threading import Event
 import argparse
+
+# 각 크롤러 모듈 임포트
 from crawlers.pp_crawler import pp_main_crw
 from crawlers.clien_crawler import clien_main_crw
 from crawlers.inven_crawler import inven_main_crw
@@ -62,22 +64,43 @@ crawlers = {
 }
 
 def main(site, start_date, end_date, search_excel):
+    # 1. 엑셀 및 날짜 로드
     pd_search = pd.read_excel(search_excel, sheet_name='검색어 목록')
     searchs = pd_search['검색어명']
-    start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-    end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
 
-    if site not in crawlers:
+    # 2. "all" 입력 시 전체 크롤러 순차 실행 
+    if site == "all":
+        print(f"📢 [전체 모드] 총 {len(crawlers)}개 사이트 크롤링을 시작합니다.")
+        
+        for site_name, crawler_func in crawlers.items():
+            print(f"\n🚀 [{site_name}] 크롤링 시작...")
+            try:
+                # 각 크롤러 실행
+                crawler_func(searchs, start_date_obj, end_date_obj, stop_event)
+                print(f"✅ [{site_name}] 완료")
+            except Exception as e:
+                # 하나가 실패해도 나머지는 계속 진행하도록 예외 처리
+                print(f"❌ [{site_name}] 크롤링 중 에러 발생: {e}")
+                
+        print("\n🎉 모든 사이트 크롤링 작업 종료")
+
+    # 3. 특정 사이트 입력 시 해당 크롤러만 실행
+    elif site in crawlers:
+        print(f"🚀 [{site}] 크롤링 시작...")
+        crawlers[site](searchs, start_date_obj, end_date_obj, stop_event)
+        print(f"✅ 크롤링 완료")
+
+    # 4. 잘못된 입력 처리
+    else:
         print(f"❌ 지원하지 않는 사이트입니다: {site}")
+        print(f"   (사용 가능: 'all' 또는 {', '.join(crawlers.keys())})")
         return
-
-    print(f"🚀 [{site}] 크롤링 시작...")
-    crawlers[site](searchs, start_date, end_date, stop_event)
-    print(f"✅ 크롤링 완료")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="사이트별 커뮤니티 크롤러 실행")
-    parser.add_argument("--site", required=True, help="사이트 이름 (예: 루리웹, 보배드림 등)")
+    parser.add_argument("--site", required=True, help="사이트 이름 (예: 루리웹, 보배드림, all)")
     parser.add_argument("--start_date", required=True, help="시작 날짜 (YYYY-MM-DD)")
     parser.add_argument("--end_date", required=True, help="종료 날짜 (YYYY-MM-DD)")
     parser.add_argument("--search_excel", required=True, help="검색어 엑셀 파일 경로")
