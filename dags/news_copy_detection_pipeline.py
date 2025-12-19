@@ -1,12 +1,15 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from datetime import datetime, timedelta
+import os
 
 default_args = {
     'owner': 'data_engineer',
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
+
+BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "news-monitoring-bucket")
 
 with DAG(
     dag_id='news_copy_detection_pipeline',
@@ -51,14 +54,15 @@ with DAG(
         bash_command='PYTHONPATH=/opt/airflow '
                      'python3 /opt/airflow/scripts/extract_original.py '
                      '--input_excel data/processed/전처리_{{ ds_nodash[2:] }}.xlsx '
-                     '--output_csv data/extracted/원문기사_{{ ds_nodash[2:] }}.csv'
+                     f'--output_csv s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ ds_nodash[2:] }}}}.csv'
     )
+    
 
     save_db = BashOperator(
         task_id='save_to_mysql',
         bash_command='PYTHONPATH=/opt/airflow '
                      'python3 /opt/airflow/scripts/save_to_db.py '
-                     '--input_excel data/extracted/원문기사_{{ ds_nodash[2:] }}.csv '
+                     f'--input_file s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ ds_nodash[2:] }}}}.csv '
                      '--table_name news_posts'
     )
 
