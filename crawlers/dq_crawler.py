@@ -9,38 +9,23 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import WebDriverException
-from datetime import datetime,date
+from datetime import datetime, date
 
-from .utils import setup_driver, save_to_csv, clean_title,result_csv_data
+from .utils import setup_driver, save_to_csv, clean_title, result_csv_data
 
-# 실행날짜 변수 및 폴더 생성
-today = datetime.now().strftime("%y%m%d")
-if not os.path.exists(f'log'):
-    os.makedirs(f'log')
-
-logging.basicConfig(
-    filename=f'더쿠_log_{today}.txt',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    encoding='utf-8'
-)
-today = datetime.now().strftime("%y%m%d")
 def parse_theqoo_date(raw_text):
     today = date.today()
     try:
         # 1. "HH:MM" → 오늘 날짜
         if re.match(r"^\d{2}:\d{2}$", raw_text):
             return today
-
         # 2. "MM.DD" → 올해 날짜
         elif re.match(r"^\d{2}\.\d{2}$", raw_text):
             month, day = map(int, raw_text.split('.'))
             return date(today.year, month, day)
-
         # 3. "YY.MM.DD" → 연도 포함
         elif re.match(r"^\d{2}\.\d{2}\.\d{2}$", raw_text):
             return datetime.strptime(raw_text, "%y.%m.%d").date()
-
         else:
             logging.warning(f"날짜 형식 인식 불가: {raw_text}")
             return None
@@ -48,7 +33,7 @@ def parse_theqoo_date(raw_text):
         logging.error(f"날짜 파싱 오류: {raw_text}, 오류: {e}")
         return None
 
-def dq_crw(wd, url, searchs):
+def dq_crw(wd, url, searchs, target_date):
     try:
         logging.info(f"더쿠 크롤링 시작: {url}")
         wd.get(url)
@@ -89,20 +74,20 @@ def dq_crw(wd, url, searchs):
 
         writer_tag = soup.select_one('div.side')
         if writer_tag:
-            # 링크 제외하고 텍스트만 추출
             writer = ''.join([t for t in writer_tag.contents if isinstance(t, str)]).strip()
             if writer == "무명의 더쿠":
                 writer = "익명"
         else:
             writer = "익명"
-        # images = content_div.find_all('img')
-        # videos = content_div.find_all('video')
-        # youtube_iframes = [i for i in content_div.find_all('iframe') if 'youtube.com' in str(i.get('src'))]
-        # has_media = 'O' if images or videos or youtube_iframes else ' '
 
         now_time = datetime.now().strftime('%Y-%m-%d ')
 
-        #  매칭되는 검색어가 있을 때마다 저장
+        # [수정] 절대 경로 저장 설정
+        current_dir = os.path.dirname(__file__)
+        save_path = os.path.join(current_dir, '..', 'data', 'raw', '24.더쿠', target_date)
+        os.makedirs(save_path, exist_ok=True)
+
+        # 매칭되는 검색어가 있을 때마다 저장
         for search in searchs:
             if search.lower() in cleaned_title.lower() or search.lower() in post_content.lower():
                 df = pd.DataFrame({
@@ -114,25 +99,38 @@ def dq_crw(wd, url, searchs):
                     "게시물 등록일자": [date],
                     "계정명": [writer],
                     "수집시간": [now_time],
-                    # "이미지 유무": [has_media]
                 })
-                save_to_csv(df, f'data/raw/24.더쿠/{today}/더쿠_{search}.csv')
-                logging.info(f'data/raw/24.더쿠/{today}/인스티즈_{search}.csv')
+                
+                file_name = os.path.join(save_path, f'더쿠_{search}.csv')
+                save_to_csv(df, file_name)
+                logging.info(f'저장 완료: {file_name}')
 
     except Exception as e:
         logging.error(f"상세 페이지 오류: {e}")
         print(f"상세 페이지 오류: {e}")
 
 
-def dq_main_crw(searchs, start_date, end_date,stop_event, max_pages=1400):
-    if not os.path.exists(f'data/raw/24.더쿠/{today}'):
-        os.makedirs(f'data/raw/24.더쿠/{today}')
-        print(f"폴더 생성 완료: {today}")
-    else:
-        print(f"해당 폴더 존재")
+def dq_main_crw(searchs, start_date, end_date, stop_event, max_pages=1400):
+    target_date = start_date.strftime("%y%m%d")
+    
+    current_dir = os.path.dirname(__file__)
+    project_root = os.path.abspath(os.path.join(current_dir, '..'))
+    
+    log_dir = os.path.join(project_root, 'log')
+    os.makedirs(log_dir, exist_ok=True)
+
+    logging.basicConfig(
+        filename=os.path.join(log_dir, f'더쿠_log_{target_date}.txt'),
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        encoding='utf-8',
+        force=True
+    )
+
     logging.info(f"========================================================")
-    logging.info(f"                    더쿠 크롤링 시작")
+    logging.info(f"             더쿠 크롤링 시작 (Date: {target_date})")
     logging.info(f"========================================================")
+    
     wd = setup_driver()
     wd_detail = setup_driver()
 
@@ -187,8 +185,8 @@ def dq_main_crw(searchs, start_date, end_date,stop_event, max_pages=1400):
                         continue
                     visited_urls.add(post_url)
 
-                    #  검색어 리스트 통째로 전달
-                    dq_crw(wd_detail, post_url, searchs)
+                    # [수정] target_date 전달
+                    dq_crw(wd_detail, post_url, searchs, target_date)
 
                 except Exception as e:
                     logging.error(f"리스트 처리 중 오류: {e}")
@@ -215,15 +213,11 @@ def dq_main_crw(searchs, start_date, end_date,stop_event, max_pages=1400):
     wd_detail.quit()
 
     if not stop_event.is_set():
-        result_dir = '결과/더쿠'
-        if not os.path.exists(result_dir):
-            os.makedirs(result_dir)
+        result_dir = os.path.join(project_root, '결과', '더쿠')
+        os.makedirs(result_dir, exist_ok=True)
 
         all_data = pd.concat([
-            result_csv_data(search, platform='더쿠', subdir='24.더쿠')
+            result_csv_data(search, platform='더쿠', subdir=f'24.더쿠/{target_date}', base_path='data/raw')
             for search in searchs
         ])
-
-        all_data.to_csv(f'{result_dir}/더쿠_raw data_{today}.csv', encoding='utf-8', index=False)
-
-
+        all_data.to_csv(os.path.join(result_dir, f'더쿠_raw data_{target_date}.csv'), encoding='utf-8', index=False)

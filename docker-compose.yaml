@@ -8,8 +8,8 @@ x-airflow-common:
     - .env
   environment:
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: mysql+mysqldb://admin:tmdduq322@news-db.cfg64geqkhdm.ap-northeast-2.rds.amazonaws.com:3306/airflow_db
-    AIRFLOW__CELERY__RESULT_BACKEND: db+mysql+mysqldb://admin:tmdduq322@news-db.cfg64geqkhdm.ap-northeast-2.rds.amazonaws.com:3306/airflow_db
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: mysql+mysqldb://admin:${DB_PASSWORD}@${DB_HOST}:3306/${DB_NAME}
+    AIRFLOW__CELERY__RESULT_BACKEND: db+mysql+mysqldb://admin:${DB_PASSWORD}@${DB_HOST}:3306/${DB_NAME}
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
     # AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'

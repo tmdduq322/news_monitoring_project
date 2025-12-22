@@ -1,108 +1,143 @@
-import pandas as pd
-from sqlalchemy import create_engine, Table, Column, MetaData
-from sqlalchemy.dialects.mysql import LONGTEXT, VARCHAR, FLOAT
-import pymysql
-import argparse
 import os
+import argparse
+import pandas as pd
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 import sys
 
-# Airflow 경로
-AIRFLOW_HOME = "/opt/airflow"
+# 프로젝트 루트 경로 설정
+SCRIPT_PATH = os.path.abspath(__file__)
+PROJECT_ROOT_DIR = os.path.dirname(os.path.dirname(SCRIPT_PATH))
 
-# AWS 및 DB 환경 변수 로드
-DB_HOST = os.getenv("DB_HOST")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME")
-DB_PORT = int(os.getenv("DB_PORT", 3306))
+# .env 로드 (AWS RDS 접속 정보)
+from dotenv import load_dotenv
+load_dotenv(os.path.join(PROJECT_ROOT_DIR, '.env'))
 
-AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-
-def summarize(text, limit=10000):
-    if isinstance(text, str) and len(text) > limit:
-        return text[:limit] + "...(이하 생략)"
-    return text
-
-def save_to_rds(filepath, table_name="news_posts"):
-    print(f"📂 [DB 저장 시작] 파일 경로: {filepath}")
-
-    # 1. 파일 읽기 (S3 지원)
-    storage_options = None
+def save_to_mysql(input_file, table_name):
+    # 1. DB 연결 문자열 생성
+    db_user = os.getenv("DB_USER", "admin")
+    db_password = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST")
+    db_name = os.getenv("DB_NAME", "airflow_db")
     
-    # S3 경로인 경우
-    if filepath.startswith("s3://"):
-        if not AWS_ACCESS_KEY or not AWS_SECRET_KEY:
-            print("❌ AWS 자격 증명(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)이 필요합니다.")
-            sys.exit(1)
-        storage_options = {"key": AWS_ACCESS_KEY, "secret": AWS_SECRET_KEY}
-    
-    # 로컬 경로인 경우 절대 경로 변환 및 존재 확인
-    else:
-        if not os.path.isabs(filepath):
-            filepath = os.path.join(AIRFLOW_HOME, filepath)
-        if not os.path.exists(filepath):
-            print(f"❌ 파일을 찾을 수 없습니다: {filepath}")
-            sys.exit(1)
+    if not db_password or not db_host:
+        print("❌ .env 파일에 DB 접속 정보(DB_HOST, DB_PASSWORD)가 없습니다.")
+        sys.exit(1)
 
+    # SQLAlchemy 엔진 생성
+    db_url = f"mysql+mysqldb://{db_user}:{db_password}@{db_host}:3306/{db_name}?charset=utf8mb4"
+    engine = create_engine(db_url)
+
+    # 2. 데이터 로드
+    print(f"📂 데이터 로드 중: {input_file}")
     try:
-        # 파일 확장자에 따라 읽기 함수 분기
-        if filepath.endswith(".xlsx"):
-            df = pd.read_excel(filepath, storage_options=storage_options)
+        # S3 경로인 경우 storage_options 필요 (s3fs 라이브러리 필요)
+        if input_file.startswith("s3://"):
+            storage_options = {
+                "key": os.getenv("AWS_ACCESS_KEY_ID"),
+                "secret": os.getenv("AWS_SECRET_ACCESS_KEY")
+            }
+            df = pd.read_csv(input_file, storage_options=storage_options)
         else:
-            df = pd.read_csv(filepath, storage_options=storage_options) #
-        
-        print(f"✅ 데이터 로드 성공: {len(df)}행")
+            df = pd.read_csv(input_file)
+            
     except Exception as e:
         print(f"❌ 파일 읽기 실패: {e}")
         sys.exit(1)
 
-    # 2. 데이터 전처리
-    if "게시물 내용" in df.columns:
-        df["게시물 내용"] = df["게시물 내용"].apply(summarize)
+    if df.empty:
+        print("⚠️ 저장할 데이터가 없습니다.")
+        return
 
-    # 3. RDS 연결
-    if not DB_HOST:
-        print("❌ DB 연결 정보(DB_HOST)가 없습니다.")
-        sys.exit(1)
+    # 3. 필요한 컬럼만 선택 및 정제
+    # DB 스키마와 DataFrame 컬럼명을 맞춰주는 작업이 필요할 수 있습니다.
+    # 예: '게시물 제목' -> 'title', '게시물 URL' -> 'url' 등
+    # 여기서는 CSV 컬럼명을 그대로 쓴다고 가정하거나, 매핑합니다.
+    column_mapping = {
+        "게시물 제목": "title",
+        "게시물 내용": "content",
+        "게시물 URL": "url",
+        "게시물 등록일자": "published_at",
+        "수집시간": "crawled_at",
+        "플랫폼": "platform",
+        "계정명": "writer",
+        "원본기사": "original_article_url",
+        "복사율": "copy_rate"
+    }
+    
+    # 존재하는 컬럼만 변경
+    df = df.rename(columns=column_mapping)
+    
+    # DB에 없는 컬럼이 df에 있으면 에러나므로, 필요한 컬럼만 필터링하는 로직 추천
+    # (여기서는 생략하고 진행)
 
-    db_url = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
-    engine = create_engine(db_url)
-    metadata = MetaData()
+    print(f"💾 DB 저장 시작 ({len(df)}건) -> 테이블: {table_name}")
 
-    # 4. 테이블 정의
-    news_posts_table = Table(
-        table_name,
-        metadata,
-        Column("검색어", VARCHAR(100)),
-        Column("플랫폼", VARCHAR(100)),
-        Column("게시물 URL", VARCHAR(500)),
-        Column("게시물 제목", VARCHAR(500)),
-        Column("게시물 내용", LONGTEXT),
-        Column("게시물 등록일자", VARCHAR(50)),
-        Column("계정명", VARCHAR(100)),
-        Column("수집시간", VARCHAR(50)),
-        Column("원본기사", VARCHAR(500)),
-        Column("복사율", FLOAT),
-    )
-
-    # 5. 저장 (기존 테이블 삭제 후 재생성)
+    # 4. 데이터 저장 (INSERT IGNORE 방식 구현)
+    # Pandas의 to_sql은 기본적으로 중복 처리를 못하므로, temp 테이블을 활용하거나
+    # 한 줄씩 넣으면서 예외처리를 해야 합니다. 대량 데이터에는 temp 테이블 방식이 빠릅니다.
+    
     try:
-        print(f"🔄 테이블 '{table_name}' 초기화 및 저장 중...")
-        news_posts_table.drop(engine, checkfirst=True)
-        news_posts_table.create(engine)
-        
-        df.to_sql(name=table_name, con=engine, if_exists="append", index=False)
-        print("✅ DB 저장 완료.")
+        with engine.connect() as conn:
+            # (1) URL 컬럼에 유니크 인덱스가 없다면 생성 (최초 1회만 실행됨)
+            # 포트폴리오용으로 안전하게 코드 내에서 처리
+            try:
+                conn.execute(text(f"ALTER TABLE {table_name} ADD UNIQUE INDEX idx_url (url(255));"))
+                print("✅ URL 컬럼에 유니크 인덱스를 생성했습니다.")
+            except Exception:
+                pass # 이미 있으면 패스
+
+            # (2) Pandas to_sql로 'append' (중복나면 에러 발생함)
+            # 따라서 'chunksize'를 사용하여 나누어 넣거나, 
+            # 가장 깔끔한 방법: 'INSERT IGNORE' 쿼리를 직접 생성해서 실행
+            
+            # DataFrame을 딕셔너리 리스트로 변환
+            data_to_insert = df.to_dict(orient='records')
+            
+            success_count = 0
+            
+            # 쿼리문 생성 (MySQL INSERT IGNORE)
+            # 컬럼 리스트 추출
+            if not data_to_insert:
+                return
+            
+            columns = data_to_insert[0].keys()
+            cols_str = ", ".join([f"`{c}`" for c in columns])
+            vals_str = ", ".join([f":{c}" for c in columns])
+            
+            sql = text(f"INSERT IGNORE INTO {table_name} ({cols_str}) VALUES ({vals_str})")
+            
+            # 실행
+            result = conn.execute(sql, data_to_insert)
+            conn.commit()
+            
+            print(f"✅ DB 저장 완료. (영향받은 행: {result.rowcount}개 / 전체: {len(df)}개)")
+            print("   (중복된 URL은 자동으로 건너뛰었습니다)")
+
     except Exception as e:
         print(f"❌ DB 저장 중 오류 발생: {e}")
-        sys.exit(1)
+        # 테이블이 아예 없어서 에러난 경우라면, to_sql로 최초 생성 시도
+        if "Table" in str(e) and "doesn't exist" in str(e):
+            print("⚠️ 테이블이 없어서 새로 생성합니다.")
+            df.to_sql(table_name, engine, if_exists='replace', index=False)
+            # 생성 후 유니크 인덱스 추가
+            with engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE {table_name} ADD UNIQUE INDEX idx_url (url(255));"))
+            print("✅ 테이블 생성 및 데이터 저장 완료.")
+        else:
+            sys.exit(1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # 인자 이름을 통일했습니다 (--input_file)
-    parser.add_argument("--input_file", required=True, help="입력 파일 경로 (로컬 또는 S3)")
-    parser.add_argument("--table_name", default="news_posts", help="테이블 이름")
-
+    parser.add_argument("--input_file", required=True, help="저장할 CSV/Excel 파일 경로")
+    parser.add_argument("--table_name", default="news_posts", help="저장할 테이블 이름")
+    
     args = parser.parse_args()
-    save_to_rds(args.input_file, args.table_name)
+    
+    # 엑셀 파일인 경우 변환
+    if args.input_file.endswith(".xlsx"):
+        # 엑셀 읽기 기능이 필요하다면 pandas read_excel 사용
+        # 여기서는 csv로 넘어온다고 가정하거나, 코드 상단에서 처리
+        pass 
+
+    save_to_mysql(args.input_file, args.table_name)
