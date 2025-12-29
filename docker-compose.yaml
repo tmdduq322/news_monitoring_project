@@ -16,6 +16,13 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
     AIRFLOW__WEBSERVER__SECRET_KEY: "airflow" 
+    AIRFLOW__SCHEDULER__SCHEDULER_ZOMBIE_TASK_THRESHOLD: 600
+    
+    # 작업 간 통신 타임아웃
+    AIRFLOW__CORE__KILLED_TASK_CLEANUP_TIME: 604800
+    
+    AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_RECYCLE: 1800
+    AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_PRE_PING: "True"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
@@ -29,6 +36,9 @@ x-airflow-common:
     - ./extraction:/opt/airflow/extraction
     - ./.env:/opt/airflow/.env
   user: "${AIRFLOW_UID:-50000}:0"
+  dns:
+    - 8.8.8.8
+    - 1.1.1.1
   depends_on:
     redis:
       condition: service_healthy

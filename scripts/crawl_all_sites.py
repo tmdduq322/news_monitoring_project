@@ -81,8 +81,7 @@ def find_data_folder(site_name, target_date_str):
         return None
         
     for folder in os.listdir(base_dir):
-        if site_name in folder: # 폴더명에 '오늘의유머'가 포함되어 있으면
-            # data/raw/5.오늘의유머/251222
+        if site_name in folder: 
             full_path = os.path.join(base_dir, folder, target_date_str)
             return full_path
     return None
@@ -103,7 +102,7 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--site", type=str, default="all", help="크롤링할 사이트 이름 (또는 'all')")
+    parser.add_argument("--site", type=str, default="all", help="크롤링할 사이트 이름 (콤마로 구분 가능, 예: '뽐뿌,클리앙')")
     parser.add_argument("--start_date", type=str, required=True, help="시작 날짜 (YYYY-MM-DD)")
     parser.add_argument("--end_date", type=str, required=True, help="종료 날짜 (YYYY-MM-DD)")
     parser.add_argument("--search_excel", type=str, required=True, help="검색어 엑셀 파일 경로")
@@ -127,22 +126,31 @@ if __name__ == "__main__":
     df = pd.read_excel(args.search_excel, sheet_name='검색어 목록')
     searchs = df['검색어명'].tolist()
 
-    # 3. 사이트 선택
-    site = args.site
+    # 3. 사이트 선택 (다중 사이트 지원 수정)
+    input_site = args.site
     sites_to_crawl = []
 
-    if site == "all":
+    if input_site == "all":
         sites_to_crawl = list(crawlers.keys())
-    elif site in crawlers:
-        sites_to_crawl = [site]
     else:
-        print(f"❌ 지원하지 않는 사이트입니다: {site}")
+        # 콤마로 구분된 리스트 처리 (공백 제거 포함)
+        potential_sites = [s.strip() for s in input_site.split(',')]
+        for s in potential_sites:
+            if s in crawlers:
+                sites_to_crawl.append(s)
+            else:
+                print(f"⚠️ 경고: '{s}'는(은) 지원하지 않는 사이트이거나 오타입니다.")
+
+    if not sites_to_crawl:
+        print("❌ 실행할 유효한 사이트가 없습니다.")
         sys.exit(1)
 
-    # [설정] 무응답 대기 시간 (10분)
-    IDLE_TIMEOUT = 5 * 60 
-    # [설정] 전체 최대 제한 시간 (안전장치, 5시간)
-    MAX_TOTAL_TIMEOUT = 1 * 60 * 60
+    print(f"📋 크롤링 대상 사이트 ({len(sites_to_crawl)}개): {sites_to_crawl}")
+
+    # [설정] 무응답 대기 시간 (5분) - 필요시 조정
+    IDLE_TIMEOUT = 10 * 60 
+    # [설정] 전체 최대 제한 시간 (5시간)
+    MAX_TOTAL_TIMEOUT = 5 * 60 * 60
 
     stop_event = multiprocessing.Event()
 
@@ -182,7 +190,7 @@ if __name__ == "__main__":
             # 만약 파일이 수정되었거나 새로 생겼으면 -> 활동 중! 시간 갱신
             if latest_file_time > last_activity_time:
                 last_activity_time = latest_file_time
-                # print(f"   [{site_name}] 새 데이터 감지됨! 타이머 리셋.") # 너무 자주 찍히면 주석 처리
+                # print(f"   [{site_name}] 새 데이터 감지됨! 타이머 리셋.") 
 
             # 4. 무응답 시간 체크
             idle_duration = current_time - last_activity_time
@@ -202,4 +210,4 @@ if __name__ == "__main__":
         else:
             print(f"⚠️ [{site_name}] 작업 종료됨 (Exit Code: {p.exitcode})")
 
-    print("\n🎉 모든 사이트 크롤링 작업 종료")
+    print("\n🎉 지정된 모든 사이트 크롤링 작업 종료")

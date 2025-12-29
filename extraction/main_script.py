@@ -54,7 +54,7 @@ def find_original_article_multiprocess(index, row_dict, total_count):
         # 5. 네이버 뉴스 API 검색
         search_results = search_news_with_api(
             queries, driver, client_id, client_secret, 
-            max_results=15, 
+            max_results=10, 
             index=index
         )
 

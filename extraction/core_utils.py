@@ -324,6 +324,10 @@ def search_news_with_api(queries, driver, client_id, client_secret, max_results=
 
                 if not link or link in seen_links or is_excluded(link):
                     continue
+                
+                if "naver.com" not in link:
+                    log(f"   ⏩ 네이버 기사가 아니라 패스: {link}", index) # 필요시 주석 해제
+                    continue
 
                 if "naver.com" in link:
                     oid = extract_oid_from_naver_url(link)
