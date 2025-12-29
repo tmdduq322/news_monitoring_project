@@ -114,7 +114,11 @@ CHROMEDRIVER_PATH=/usr/bin/chromedriver
 ## 3. Run with Docker
 Airflow 컨테이너 및 필요한 서비스를 실행합니다.
 ```bash
-docker-compose up -d
+# 1. 이미지 빌드 및 실행
+docker-compose up -d --build
+
+# 2. 실행 상태 확인
+docker-compose ps
 ```
 
 ## 4. Usage
