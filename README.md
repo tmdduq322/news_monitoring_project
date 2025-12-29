@@ -82,6 +82,11 @@ news_monitoring_project/
 * **Docker** & **Docker Compose** (필수)
 * **Python 3.10+** (로컬 개발 시)
 
+### 2. Environment Variables (.env)
+
+프로젝트 루트에 .env 파일을 생성하고 아래 정보를 입력해야 합니다.
+
+```bash
 
 # AWS S3 Configuration
 AWS_ACCESS_KEY_ID=your_access_key
@@ -102,13 +107,17 @@ NAVER_CLIENT_SECRET=your_client_secret
 # Local Config
 CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
-## 2. Run with Docker
+
+```
+
+
+## 3. Run with Docker
 Airflow 컨테이너 및 필요한 서비스를 실행합니다.
 ```bash
 docker-compose up -d
 ```
 
-## 3. Usage
+## 4. Usage
 1. **Airflow 웹 접속**: http://localhost:8080
 
 2. **DAG 활성화**: news_copy_detection_pipeline DAG를 Unpause(ON) 상태로 변경
