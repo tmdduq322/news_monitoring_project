@@ -59,13 +59,13 @@ def process_data(
     df_filtered = df3 
 
     # DA 필터링 (process_file.py에 정의됨)
-    # filtered_df = filter_da(df_filtered)
+    filtered_df = filter_da(df_filtered)
     
-    df_filtered.to_excel(output_excel_path, index=False)
+    filtered_df.to_excel(output_excel_path, index=False)
     print(f"✅ 전처리 완료: {output_excel_path}")
-    print(f"→ 입력: {len(df)}개 / 최종: {len(df_filtered)}개")
+    print(f"→ 입력: {len(df)}개 / 최종: {len(filtered_df)}개")
 
-    return df_filtered
+    return filtered_df
 
 
 if __name__ == "__main__":

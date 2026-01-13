@@ -134,7 +134,7 @@ def dq_main_crw(searchs, start_date, end_date, stop_event, max_pages=1400):
     wd = setup_driver()
     wd_detail = setup_driver()
 
-    page_num = 50
+    page_num = 1
     visited_urls = set()
 
     while page_num <= max_pages:

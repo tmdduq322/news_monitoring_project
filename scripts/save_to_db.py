@@ -33,7 +33,7 @@ def save_to_mysql(input_file_pattern, table_name):
         sys.exit(1)
 
     # SSL 설정
-    db_url = f"mysql+mysqldb://{db_user}:{db_password}@{db_host}:3306/{db_name}?charset=utf8mb4"
+    db_url = f"mysql+pymysql://{db_user}:{db_password}@{db_host}:3306/{db_name}?charset=utf8mb4"
     connect_args = {
         "ssl": {    
             "check_hostname": False,

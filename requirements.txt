@@ -14,3 +14,4 @@ scikit-learn
 s3fs
 cryptography
 boto3
+pymysql
