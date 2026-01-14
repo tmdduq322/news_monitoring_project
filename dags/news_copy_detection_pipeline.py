@@ -23,7 +23,7 @@ with DAG(
     catchup=False,
     tags=['news', 'copy-detection'],
     # 전체 DAG 수준에서도 동시에 돌아가는 태스크 수 제한 (안전을 위해 2로 설정)
-    max_active_tasks=1,
+    max_active_tasks=2,
 ) as dag:
 
     # 1. 사이트 그룹별 병렬 크롤링 (2개 조로 분산 - 로드 밸런싱 적용)
@@ -31,16 +31,16 @@ with DAG(
         
         # [1조] 디시, 뽐뿌, 클리앙 포함 (Heavy 절반 + Light 절반)
         # 리스트: 디시인사이드, 뽐뿌, 클리앙, 보배드림, 더쿠, 인스티즈, 네이트판, 웃긴대학, 오르비, DVD프라임
-        group_1_sites = "디시인사이드,뽐뿌,클리앙,보배드림,더쿠,네이트판,인스티즈,웃긴대학,오르비,DVD프라임,일간베스트"
+        # group_1_sites = "디시인사이드,뽐뿌,클리앙,보배드림,더쿠,네이트판,인스티즈,웃긴대학,오르비,DVD프라임,일간베스트"
         
         crawl_1 = BashOperator(
             task_id='crawl_group_1',
             bash_command=f'export PYTHONUNBUFFERED=1; '
                          f'PYTHONPATH=/opt/airflow '
                          f'python3 /opt/airflow/scripts/crawl_all_sites.py '
-                         f'--site "all" '
-                         f'--start_date {{{{ macros.ds_add(ds, -1) }}}} '
-                         f'--end_date {{{{ macros.ds_add(ds, -1) }}}} '
+                         f'--site " all " '
+                         f'--start_date {{ macros.ds_add(ds, -1) }} '
+                         f'--end_date {{ macros.ds_add(ds, -1) }} '
                          f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
             # 사이트 수가 늘어났으므로 타임아웃을 넉넉하게 6시간으로 잡음
             execution_timeout=timedelta(hours=6)
@@ -60,7 +60,7 @@ with DAG(
         #                  f'--end_date {{{{ macros.ds_add(ds, -1) }}}} '
         #                  f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
         #     execution_timeout=timedelta(hours=6)
-        )
+        #)
         
     # 2. 병합 (로컬)
     merge = BashOperator(
