@@ -38,7 +38,7 @@ with DAG(
             bash_command=f'export PYTHONUNBUFFERED=1; '
                          f'PYTHONPATH=/opt/airflow '
                          f'python3 /opt/airflow/scripts/crawl_all_sites.py '
-                         f'--site "all" '
+                         f'--site "{group_1_sites}" '
                          f'--start_date {{{{ macros.ds_add(ds, -1) }}}} '
                          f'--end_date {{{{ macros.ds_add(ds, -1) }}}} '
                          f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
