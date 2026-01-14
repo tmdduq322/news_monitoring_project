@@ -31,7 +31,7 @@ with DAG(
         
         # [1조] 디시, 뽐뿌, 클리앙 포함 (Heavy 절반 + Light 절반)
         # 리스트: 디시인사이드, 뽐뿌, 클리앙, 보배드림, 더쿠, 인스티즈, 네이트판, 웃긴대학, 오르비, DVD프라임
-        # group_1_sites = "디시인사이드,뽐뿌,클리앙,보배드림,더쿠,네이트판,인스티즈,웃긴대학,오르비,DVD프라임,일간베스트"
+        group_1_sites = "디시인사이드,뽐뿌,클리앙,보배드림,더쿠,네이트판,인스티즈,웃긴대학,오르비,DVD프라임,일간베스트"
         
         crawl_1 = BashOperator(
             task_id='crawl_group_1',
@@ -46,21 +46,21 @@ with DAG(
             execution_timeout=timedelta(hours=6)
         )
 
-        # # [2조] 펨코, 루리웹, 인벤 포함 (Heavy 절반 + Light 절반)
-        # # 리스트: 에펨코리아, 루리웹, 인벤, 엠엘비파크, 아카라이브, 일간베스트, 오늘의유머, 82쿡, 개드립, 동사로마닷컴, 사커라인, 포모스, 짱공유닷컴, 블라인드
-        # group_2_sites = "에펨코리아,루리웹,인벤,엠엘비파크,아카라이브,오늘의유머,82쿡,개드립,동사로마닷컴,사커라인,포모스,짱공유닷컴,블라인드"
+        # [2조] 펨코, 루리웹, 인벤 포함 (Heavy 절반 + Light 절반)
+        # 리스트: 에펨코리아, 루리웹, 인벤, 엠엘비파크, 아카라이브, 일간베스트, 오늘의유머, 82쿡, 개드립, 동사로마닷컴, 사커라인, 포모스, 짱공유닷컴, 블라인드
+        group_2_sites = "에펨코리아,루리웹,인벤,엠엘비파크,아카라이브,오늘의유머,82쿡,개드립,동사로마닷컴,사커라인,포모스,짱공유닷컴,블라인드"
         
-        # crawl_2 = BashOperator(
-        #     task_id='crawl_group_2',
-        #     bash_command=f'export PYTHONUNBUFFERED=1; '
-        #                  f'PYTHONPATH=/opt/airflow '
-        #                  f'python3 /opt/airflow/scripts/crawl_all_sites.py '
-        #                  f'--site "{group_2_sites}" '
-        #                  f'--start_date {{{{ macros.ds_add(ds, -1) }}}} '
-        #                  f'--end_date {{{{ macros.ds_add(ds, -1) }}}} '
-        #                  f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
-        #     execution_timeout=timedelta(hours=6)
-        #)
+        crawl_2 = BashOperator(
+            task_id='crawl_group_2',
+            bash_command=f'export PYTHONUNBUFFERED=1; '
+                         f'PYTHONPATH=/opt/airflow '
+                         f'python3 /opt/airflow/scripts/crawl_all_sites.py '
+                         f'--site "{group_2_sites}" '
+                         f'--start_date {{{{ macros.ds_add(ds, -1) }}}} '
+                         f'--end_date {{{{ macros.ds_add(ds, -1) }}}} '
+                         f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
+            execution_timeout=timedelta(hours=6)
+        )
         
     # 2. 병합 (로컬)
     merge = BashOperator(
