@@ -39,8 +39,8 @@ with DAG(
                          f'PYTHONPATH=/opt/airflow '
                          f'python3 /opt/airflow/scripts/crawl_all_sites.py '
                          f'--site " all " '
-                         f'--start_date {{ macros.ds_add(ds, -1) }} '
-                         f'--end_date {{ macros.ds_add(ds, -1) }} '
+                         f'--start_date {{{{ macros.ds_add(ds, -1) }}}} '
+                         f'--end_date {{{{ macros.ds_add(ds, -1) }}}} '
                          f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
             # 사이트 수가 늘어났으므로 타임아웃을 넉넉하게 6시간으로 잡음
             execution_timeout=timedelta(hours=6)
