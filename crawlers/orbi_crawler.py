@@ -9,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from datetime import datetime
 
-from .utils import setup_driver, save_to_csv, clean_title
+from .utils import setup_driver, save_to_csv, clean_title,result_csv_data
 
 # ---------------------------------------------------------
 # [상세 페이지 수집 함수] orbi_crw
