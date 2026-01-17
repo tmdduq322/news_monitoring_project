@@ -232,6 +232,7 @@ services:
   # 스케줄러 (LocalExecutor이므로 여기서 작업 실행도 같이 함 - 필수)
   airflow-scheduler:
     <<: *airflow-common
+    shm_size: '2gb' # 공유 메모리를 2GB
     command: scheduler
 
   # [삭제됨] airflow-worker (메모리 주범)

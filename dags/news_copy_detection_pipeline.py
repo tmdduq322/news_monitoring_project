@@ -13,7 +13,7 @@ default_args = {
 # S3 버킷 설정
 BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "news-monitoring-bucket")
 # 원문 추출 워커 수 
-EXTRACT_WORKER_COUNT = 1
+EXTRACT_WORKER_COUNT = 2
 
 with DAG(
     dag_id='news_copy_detection_pipeline',
@@ -23,7 +23,7 @@ with DAG(
     catchup=False,
     tags=['news', 'copy-detection'],
     # 전체 DAG 수준에서도 동시에 돌아가는 태스크 수 제한 (안전을 위해 2로 설정)
-    max_active_tasks=1,
+    max_active_tasks=2,
 ) as dag:
 
     # 1. 사이트 그룹별 병렬 크롤링 (2개 조로 분산 - 로드 밸런싱 적용)
@@ -38,7 +38,7 @@ with DAG(
             bash_command=f'export PYTHONUNBUFFERED=1; '
                          f'PYTHONPATH=/opt/airflow '
                          f'python3 /opt/airflow/scripts/crawl_all_sites.py '
-                         f'--site "all" '
+                         f'--site "{group_2_sites}" '
                          f'--start_date {{{{ macros.ds_add(ds, -1) }}}} '
                          f'--end_date {{{{ macros.ds_add(ds, -1) }}}} '
                          f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
@@ -46,21 +46,21 @@ with DAG(
             execution_timeout=timedelta(hours=6)
         )
 
-        # # [2조] 펨코, 루리웹, 인벤 포함 (Heavy 절반 + Light 절반)
-        # # 리스트: 에펨코리아, 루리웹, 인벤, 엠엘비파크, 아카라이브, 일간베스트, 오늘의유머, 82쿡, 개드립, 동사로마닷컴, 사커라인, 포모스, 짱공유닷컴, 블라인드
-        # group_2_sites = "에펨코리아,루리웹,인벤,엠엘비파크,아카라이브,오늘의유머,82쿡,개드립,동사로마닷컴,사커라인,포모스,짱공유닷컴,블라인드"
+        # [2조] 펨코, 루리웹, 인벤 포함 (Heavy 절반 + Light 절반)
+        # 리스트: 에펨코리아, 루리웹, 인벤, 엠엘비파크, 아카라이브, 일간베스트, 오늘의유머, 82쿡, 개드립, 동사로마닷컴, 사커라인, 포모스, 짱공유닷컴, 블라인드
+        group_2_sites = "에펨코리아,루리웹,인벤,엠엘비파크,아카라이브,오늘의유머,82쿡,개드립,동사로마닷컴,사커라인,포모스,짱공유닷컴,블라인드"
         
-        # crawl_2 = BashOperator(
-        #     task_id='crawl_group_2',
-        #     bash_command=f'export PYTHONUNBUFFERED=1; '
-        #                  f'PYTHONPATH=/opt/airflow '
-        #                  f'python3 /opt/airflow/scripts/crawl_all_sites.py '
-        #                  f'--site "{group_2_sites}" '
-        #                  f'--start_date {{{{ macros.ds_add(ds, -1) }}}} '
-        #                  f'--end_date {{{{ macros.ds_add(ds, -1) }}}} '
-        #                  f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
-        #     execution_timeout=timedelta(hours=6)
-        # )
+        crawl_2 = BashOperator(
+            task_id='crawl_group_2',
+            bash_command=f'export PYTHONUNBUFFERED=1; '
+                         f'PYTHONPATH=/opt/airflow '
+                         f'python3 /opt/airflow/scripts/crawl_all_sites.py '
+                         f'--site "{group_2_sites}" '
+                         f'--start_date {{{{ macros.ds_add(ds, -1) }}}} '
+                         f'--end_date {{{{ macros.ds_add(ds, -1) }}}} '
+                         f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
+            execution_timeout=timedelta(hours=6)
+        )
         
     # 2. 병합 (로컬)
     merge = BashOperator(
