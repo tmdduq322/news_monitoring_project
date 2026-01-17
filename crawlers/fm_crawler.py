@@ -124,7 +124,7 @@ def fm_main_crw(searchs, start_date, end_date, stop_event):
                 for li in li_tags:
                     after_start_date = False
                     try:
-                        date_str = li.find('span', class_='time').text
+                        date_str = li.find('span', class_='date m_no').text
                         date = datetime.strptime(date_str, '%Y-%m-%d %H:%M').date()
                     except Exception as e:
                         logging.error("날짜 오류 발생: {e}")
