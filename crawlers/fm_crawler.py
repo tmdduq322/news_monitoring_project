@@ -7,33 +7,43 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from datetime import datetime
 
+# [추가] 안정적인 로딩을 위한 Selenium 대기 모듈
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
 from .utils import setup_driver, save_to_csv, clean_title, result_csv_data
 
-# 한페이지 크롤링
+# 한페이지 크롤링 (상세 페이지)
 def fm_crw(wd, url, search, target_date):
     try:
-        wd.get(f'{url}')
-        sleep_random_time = random.uniform(2, 4)
-        time.sleep(sleep_random_time)
+        wd.get(url)
+        # [개선] 본문(article)이 로딩될 때까지 최대 10초 대기
+        try:
+            WebDriverWait(wd, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "article"))
+            )
+        except:
+            logging.error(f"❌ 페이지 로딩 타임아웃 또는 차단됨: {url}")
+            return
+
         soup = BeautifulSoup(wd.page_source, 'html.parser')
 
-        writer_list = []
-        title_list = []
-        content_list = []
-        url_list = []
-        search_plt_list = []
-        search_word_list = []
-        date_list = []
-
+        # 1. 본문 영역 찾기 (제공된 HTML 구조 반영)
         content_div = soup.find('article')
+        if not content_div:
+            logging.error(f"❌ 본문(article) 영역을 찾을 수 없음: {url}")
+            return
 
-        raw_title = soup.find('span', class_='np_18px_span').get_text()
+        # 2. 제목 추출 (np_18px_span 클래스 사용)
+        title_tag = soup.find('span', class_='np_18px_span')
+        raw_title = title_tag.get_text() if title_tag else "제목 없음"
         cleaned_title = clean_title(raw_title)
-        title_list.append(cleaned_title)
         logging.info(f"제목 추출 성공: {cleaned_title}")
 
-        # <a> 태그 중 이미지가 없는 경우에만 삭제
-        for a_tag in content_div.find_all('a'):
+        # 3. 본문 내 불필요한 태그 제거 (<a> 태그 내 미디어 없는 경우)
+        a_tags = content_div.find_all('a')
+        for a_tag in a_tags:
             if (
                     not a_tag.find('img') and
                     not a_tag.find('span', class_='scrap_img') and
@@ -44,49 +54,48 @@ def fm_crw(wd, url, search, target_date):
 
         post_content = content_div.get_text(separator='\n', strip=True)
         post_content = re.sub(r'http[s]?://\S+', '', post_content)
-        content_list.append(post_content)
-        logging.info(f"내용 추출 성공: {post_content}")
+        logging.info(f"내용 추출 성공 (길이: {len(post_content)})")
 
-        search_plt_list.append('웹페이지(에펨코리아)')
-        url_list.append(url)
-        search_word_list.append(search)
+        # 4. 날짜 및 작성자 추출 (제공된 HTML 구조 반영)
+        # 날짜: <span class="date m_no">2026.01.17 23:30</span>
+        date_tag = soup.find('span', class_="date m_no")
+        date_val = date_tag.text.split()[0].replace('.', '-') if date_tag else target_date
 
-        date_list.append(soup.find('span', class_="date m_no").text.split()[0])
-        writer_list.append(soup.find('a', class_=re.compile(r'^member_\d+')).get_text())
+        # 작성자: <a class="member_...">
+        writer_tag = soup.find('a', class_=re.compile(r'^member_\d+'))
+        writer_val = writer_tag.get_text() if writer_tag else "익명"
 
         main_temp = pd.DataFrame({
-            "검색어": search_word_list,
-            "플랫폼": search_plt_list,
-            "게시물 URL": url_list,
-            "게시물 제목": title_list,
-            "게시물 내용": content_list,
-            "게시물 등록일자": date_list,
-            "계정명": writer_list,
+            "검색어": [search],
+            "플랫폼": ['웹페이지(에펨코리아)'],
+            "게시물 URL": [url],
+            "게시물 제목": [cleaned_title],
+            "게시물 내용": [post_content],
+            "게시물 등록일자": [date_val],
+            "계정명": [writer_val],
         })
 
-        # [수정] 절대 경로 및 target_date 사용
+        # 5. 저장 경로 설정 및 저장
         current_dir = os.path.dirname(__file__)
         save_path = os.path.join(current_dir, '..', 'data', 'raw', '23.에펨코리아', target_date)
         os.makedirs(save_path, exist_ok=True)
         
         file_name = os.path.join(save_path, f'에펨코리아_{search}.csv')
         save_to_csv(main_temp, file_name)
-        logging.info(f'저장완료 : {file_name}')
+        logging.info(f'✅ 저장완료 : {file_name}')
 
     except Exception as e:
-        logging.error(f"오류 발생: {e}")
-        return pd.DataFrame()
+        logging.error(f"🛑 상세 페이지 크롤링 중 오류 발생: {e}")
 
 
 def fm_main_crw(searchs, start_date, end_date, stop_event):
     target_date = start_date.strftime("%y%m%d")
-    
     current_dir = os.path.dirname(__file__)
     project_root = os.path.abspath(os.path.join(current_dir, '..'))
     
+    # 로그 설정
     log_dir = os.path.join(project_root, 'log')
     os.makedirs(log_dir, exist_ok=True)
-
     logging.basicConfig(
         filename=os.path.join(log_dir, f'에펨코리아_log_{target_date}.txt'),
         level=logging.INFO,
@@ -95,16 +104,13 @@ def fm_main_crw(searchs, start_date, end_date, stop_event):
         force=True
     )
 
-    logging.info(f"========================================================")
-    logging.info(f"             에펨코리아 크롤링 시작 (Date: {target_date})")
-    logging.info(f"========================================================")
+    logging.info(f"🚀 에펨코리아 크롤링 시작 (Date: {target_date})")
     
     wd = setup_driver()
     wd_dp1 = setup_driver()
 
     for search in searchs:
         if stop_event.is_set():
-            print("🛑 크롤링 중단됨")
             break
         page_num = 1
 
@@ -114,32 +120,43 @@ def fm_main_crw(searchs, start_date, end_date, stop_event):
             try:
                 url_dp1 = f'https://www.fmkorea.com/search.php?act=IS&is_keyword={search}&mid=home&where=document&page={page_num}'
                 wd_dp1.get(url_dp1)
-                sleep_random_time = random.uniform(2, 4)
-                time.sleep(sleep_random_time)
+                time.sleep(random.uniform(2, 4))
                 soup_dp1 = BeautifulSoup(wd_dp1.page_source, 'html.parser')
 
-                # 검색결과 리스트
-                li_tags = soup_dp1.find('ul', class_='searchResult').find_all('li')
+                # [수정] 검색결과 리스트 영역 존재 여부 확인 (에러 방지)
+                search_result_ul = soup_dp1.find('ul', class_='searchResult')
+                if not search_result_ul:
+                    logging.info(f"검색 결과가 더 이상 없거나 차단됨 (Page: {page_num})")
+                    break
+
+                li_tags = search_result_ul.find_all('li')
+                after_start_date = False
 
                 for li in li_tags:
-                    after_start_date = False
                     try:
-                        date_str = li.find('span', class_='date m_no').text
-                        date = datetime.strptime(date_str, '%Y-%m-%d %H:%M').date()
+                        # 리스트에서의 날짜 추출 (구조 확인 필요, 일반적으로 span.time 혹은 span.date 사용)
+                        date_tag = li.find('span', class_=re.compile(r'time|date'))
+                        if not date_tag: continue
+                        
+                        date_str = date_tag.text.strip()
+                        # 리스트 날짜 형식에 따른 파싱 (YYYY-MM-DD HH:MM 또는 YYYY.MM.DD)
+                        if '.' in date_str:
+                            item_date = datetime.strptime(date_str.split()[0], '%Y.%m.%d').date()
+                        else:
+                            item_date = datetime.strptime(date_str.split()[0], '%Y-%m-%d').date()
                     except Exception as e:
-                        logging.error("날짜 오류 발생: {e}")
                         continue
 
-                    if date > end_date:
+                    if item_date > end_date:
                         continue
-                    if date < start_date:
+                    if item_date < start_date:
                         after_start_date = True
                         break
 
-                    url_dp2_num = li.find('a').get('href')
-                    url = 'https://www.fmkorea.com' + url_dp2_num
-                    logging.info(f"url 찾음.")
-                    fm_crw(wd, url, search, target_date)
+                    a_tag = li.find('a')
+                    if a_tag:
+                        url = 'https://www.fmkorea.com' + a_tag.get('href')
+                        fm_crw(wd, url, search, target_date)
 
                 if after_start_date:
                     break
@@ -147,8 +164,9 @@ def fm_main_crw(searchs, start_date, end_date, stop_event):
                     page_num += 1
 
             except Exception as e:
-                print(f"오류 발생: {e}")
+                logging.error(f"⚠️ 검색 리스트 파싱 중 오류 발생: {e}")
                 break
+                
     wd.quit()
     wd_dp1.quit()
     
