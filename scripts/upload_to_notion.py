@@ -19,7 +19,7 @@ def upload_from_db_to_notion(target_date):
     # 2. 유사도 0.3 이상 & 특정 날짜 데이터 쿼리
     query = f"""
         SELECT * FROM news_posts 
-        WHERE score >= 0.3 
+        WHERE copy_rate >= 0.3 
         AND DATE(created_at) = '{target_date}'
     """
     
