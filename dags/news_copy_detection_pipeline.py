@@ -112,6 +112,14 @@ with DAG(
                      f'--table_name news_posts',
         trigger_rule='all_success'
     )
-
+    
+    # 노션 업로드 태스크 정의
+    notion_upload = BashOperator(
+        task_id='upload_to_notion',
+        bash_command=f'export PYTHONPATH=/opt/airflow; '
+                    f'python3 /opt/airflow/scripts/upload_to_notion.py '
+                    f's3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ macros.ds_format(macros.ds_add(ds, -1), "%Y-%m-%d", "%y%m%d") }}}}.csv'
+    )
+    
     # 작업 순서 연결
-    crawl_group >> merge >> process >> extract_group >> save_db
+    crawl_group >> merge >> process >> extract_group >> save_db >> notion_upload
