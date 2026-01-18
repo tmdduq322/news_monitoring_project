@@ -148,7 +148,7 @@ if __name__ == "__main__":
     print(f"📋 크롤링 대상 사이트 ({len(sites_to_crawl)}개): {sites_to_crawl}")
 
     # [설정] 무응답 대기 시간 (5분) - 필요시 조정
-    IDLE_TIMEOUT = 5 * 60 
+    IDLE_TIMEOUT = 4 * 60 
     # [설정] 전체 최대 제한 시간 (6시간)
     MAX_TOTAL_TIMEOUT = 6 * 60 * 60
 
