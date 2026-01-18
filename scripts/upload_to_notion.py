@@ -20,7 +20,7 @@ def upload_from_db_to_notion(target_date):
     query = f"""
         SELECT * FROM news_posts 
         WHERE copy_rate >= 0.3 
-        AND DATE(created_at) = '{target_date}'
+        AND DATE(crawled_at) = '{target_date}'
     """
     
     try:
