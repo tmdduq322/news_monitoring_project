@@ -52,6 +52,7 @@ def bobaedream_crw(wd, url, search, target_date):
         date_list.append(date)
         logging.info(f"날짜 추출 성공: {date_str}")
 
+        now_time = datetime.now().strftime('%Y-%m-%d ')
         writer_list.append(soup.find('dd', class_='proflieInfo').find_all('li')[0].find('span', class_='proCont').get_text().lstrip())
 
         main_temp = pd.DataFrame({
@@ -61,7 +62,8 @@ def bobaedream_crw(wd, url, search, target_date):
             "게시물 제목": title_list,
             "게시물 내용": content_list,
             "게시물 등록일자": date_list,
-            "계정명": writer_list
+            "계정명": writer_list,
+            "수집시간": now_time,
         })
 
         # [수정] 절대 경로 저장
