@@ -43,7 +43,7 @@ def upload_from_db_to_notion(target_date):
             "parent": { "database_id": DATABASE_ID },
             "properties": {
                 "제목": { "title": [{ "text": { "content": row['title'] } }] },
-                "유사도": { "number": round(float(row['score']), 4) },
+                "유사도": { "number": round(float(row['copy_rate']), 4) },
                 "URL": { "url": row['url'] },
                 "플랫폼": { "select": { "name": row['platform'] } }
             }
