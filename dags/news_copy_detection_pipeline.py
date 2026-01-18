@@ -118,7 +118,7 @@ with DAG(
         task_id='upload_to_notion',
         bash_command=f'export PYTHONPATH=/opt/airflow; '
                     f'python3 /opt/airflow/scripts/upload_to_notion.py '
-                    f'{{{{ macros.ds_add(ds, -1) }}}}' # Airflow의 실행 날짜(YYYY-MM-DD) 전달
+                    f'{{{{ ds }}}}' # Airflow의 실행 날짜(YYYY-MM-DD) 전달
     )
 
     # 작업 순서 연결
