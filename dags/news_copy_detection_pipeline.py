@@ -115,11 +115,13 @@ with DAG(
     
     # 노션 업로드 태스크 정의
     notion_upload = BashOperator(
-        task_id='upload_to_notion',
-        bash_command=f'export PYTHONPATH=/opt/airflow; '
-                    f'python3 /opt/airflow/scripts/upload_to_notion.py '
-                    f's3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ macros.ds_format(macros.ds_add(ds, -1), "%Y-%m-%d", "%y%m%d") }}}}.csv'
-    )
+    task_id='upload_to_notion',
+    bash_command=f'export PYTHONPATH=/opt/airflow; '
+                 f'python3 /opt/airflow/scripts/upload_to_notion.py '
+                 f'{{{{ macros.ds_add(ds, -1) }}}}' # Airflow의 실행 날짜(YYYY-MM-DD) 전달
+)
+
+save_db >> notion_upload
     
     # 작업 순서 연결
     crawl_group >> merge >> process >> extract_group >> save_db >> notion_upload
