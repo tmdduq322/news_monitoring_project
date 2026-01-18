@@ -59,7 +59,7 @@ def dp_crw(wd, url, search, target_date):
         logging.info(f"날짜 추출 성공: {date_str}")
 
         writer_list.append(soup.find('span', class_='member').get_text(strip=True))
-
+        now_time = datetime.now().strftime('%Y-%m-%d ')
         main_temp = pd.DataFrame({
             "검색어": search_word_list,
             "플랫폼": search_plt_list,
@@ -68,6 +68,7 @@ def dp_crw(wd, url, search, target_date):
             "게시물 내용": content_list,
             "게시물 등록일자": date_list,
             "계정명": writer_list,
+            "수집시간": now_time,
         })
 
         # [수정] 절대 경로 저장

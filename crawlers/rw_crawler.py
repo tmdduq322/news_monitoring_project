@@ -59,7 +59,7 @@ def rw_crw(wd, url, search, target_date):
         rw_date_str = soup.find('span', class_='regdate').text.strip().split(' ')[0]
         date_list.append(rw_date_str)
         writer_list.append(soup.find('a', class_='nick').get_text())
-
+        now_time = datetime.now().strftime('%Y-%m-%d ')
         main_temp = pd.DataFrame({
             "검색어": search_word_list,
             "플랫폼": search_plt_list,
@@ -68,6 +68,7 @@ def rw_crw(wd, url, search, target_date):
             "게시물 내용": content_list,
             "게시물 등록일자": date_list,
             "계정명": writer_list,
+            "수집시간": now_time,
         })
 
         # [수정] 절대 경로 저장

@@ -65,6 +65,8 @@ def fm_crw(wd, url, search, target_date):
         writer_tag = soup.find('a', class_=re.compile(r'^member_\d+'))
         writer_val = writer_tag.get_text() if writer_tag else "익명"
 
+        now_time = datetime.now().strftime('%Y-%m-%d ')
+           
         main_temp = pd.DataFrame({
             "검색어": [search],
             "플랫폼": ['웹페이지(에펨코리아)'],
@@ -73,6 +75,7 @@ def fm_crw(wd, url, search, target_date):
             "게시물 내용": [post_content],
             "게시물 등록일자": [date_val],
             "계정명": [writer_val],
+            "수집시간": [now_time],
         })
 
         # 5. 저장 경로 설정 및 저장
