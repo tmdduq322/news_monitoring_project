@@ -14,7 +14,7 @@ DB_NAME = os.getenv("DB_NAME")
 
 def upload_from_db_to_notion(target_date):
     # 1. DB 연결 설정 (SQLAlchemy)
-    engine = create_engine(f"mysql+pymysql://{db_user}:{db_password}@{db_host}:3306/{db_name}?charset=utf8mb4")
+    engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:3306/{DB_NAME}")
     
     # 2. 유사도 0.3 이상 & 특정 날짜 데이터 쿼리
     query = f"""
