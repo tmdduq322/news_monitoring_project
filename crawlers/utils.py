@@ -21,6 +21,7 @@ def setup_driver():
     logging.info("웹드라이버 시작")
 
     options = Options()
+    options.page_load_strategy = 'eager'
     
     # [핵심 1] 한국어 언어 설정 (EC2는 이게 없으면 봇으로 의심받음)
     options.add_argument("--lang=ko_KR")
