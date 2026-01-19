@@ -120,7 +120,7 @@ with DAG(
         task_id='upload_to_notion',
         bash_command=f'export PYTHONPATH=/opt/airflow; '
                     f'python3 /opt/airflow/scripts/upload_to_notion.py '
-                    f'{{{{ ds_add(ds, -1) }}}}', # 수집 날짜와 동일하게 어제 날짜 전달
+                    f'{{{{ ds }}}}', # 수집 날짜와 동일하게 어제 날짜 전달
         do_xcom_push=True # 마지막 출력값(database_id)을 XCom에 저장
     )
 
@@ -129,7 +129,7 @@ with DAG(
         task_id='gemini_summarize',
         bash_command=f'export PYTHONPATH=/opt/airflow; '
                     f'python3 /opt/airflow/scripts/gemini_summary.py '
-                    f'--date "{{{{ ds_add(ds, -1) }}}}" '
+                    f'--date "{{{{ ds }}}}" '
                     f'--page_id "{{{{ ti.xcom_pull(task_ids="upload_to_notion") }}}}"',
         trigger_rule='all_success'
     )

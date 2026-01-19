@@ -80,7 +80,7 @@ def upload_from_db_to_notion(target_date):
             }
         }
         requests.post("https://api.notion.com/v1/pages", headers=headers, json=payload)
-    print(f"🏁 {target_date} 노션 업로드 완료!")
+    # print(f"🏁 {target_date} 노션 업로드 완료!")
     print(database_id)
 
 if __name__ == "__main__":
