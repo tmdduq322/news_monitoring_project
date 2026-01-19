@@ -93,7 +93,7 @@ def create_summary_page_in_notion(database_id, summary_text, target_date):
     payload = {
         "parent": {"database_id": database_id},
         "properties": {
-            "Name": { # 데이터베이스의 제목 컬럼명이 'Name' 또는 '제목'인지 확인 필요 (보통 기본값은 Name/title)
+            "제목": { # 데이터베이스의 제목 컬럼명이 'Name' 또는 '제목'인지 확인 필요 (보통 기본값은 Name/title)
                 "title": [
                     {"text": {"content": f"🤖 {target_date} AI 요약 리포트"}}
                 ]
