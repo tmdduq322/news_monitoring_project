@@ -35,8 +35,6 @@ def setup_driver():
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    
-    # [설정] 로컬 테스트할 때 화면 보고 싶으면 아래 줄 주석 처리 (#) 하세요
     options.add_argument('--headless=new') 
     
     options.add_argument('--window-size=1920,1080')
