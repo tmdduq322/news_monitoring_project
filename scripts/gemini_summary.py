@@ -34,7 +34,7 @@ def get_yesterday_data(target_date):
                 SELECT keyword, title 
                 FROM news_posts 
                 WHERE DATE(crawled_at) = '{target_date}'
-                ORDER BY copy_rate DESC LIMIT 30
+                ORDER BY copy_rate DESC LIMIT 50
             """
             cursor.execute(sql)
             results = cursor.fetchall()
@@ -54,19 +54,23 @@ def generate_summary(data_list):
     prompt = f"""
     너는 뉴스 데이터 분석가야. 아래는 오늘 수집된 뉴스 기사 제목 리스트야.
     이 내용을 바탕으로 다음 형식에 맞춰 한국어로 요약해줘.
-    글에 하이라이트를 넣지 말고 작성해줘.
     
     [데이터]
     {context}
 
     [형식]
-    ### 💡 오늘의 핵심 이슈 (3가지)
+     💡 오늘의 핵심 이슈 (3가지)
     1. (이슈 1)
     2. (이슈 2)
     3. (이슈 3)
 
-    ### 🔥 트렌드 분석
-    (사람들의 관심사가 어디에 쏠려있는지 2문장으로 요약)
+     🔥 트렌드 분석
+    (사람들의 관심사가 어디에 쏠려있는지 3문장으로 요약)
+    
+    [주의사항]
+    1. **굵게**, ## 헤더 같은 마크다운(Markdown) 문법을 절대 사용하지 마.
+    2. 특수기호(*, #) 없이 깔끔한 줄글(Plain Text)로만 작성해.
+    3. 문장은 명확하고 간결하게 끝맺어줘.
     """
     
     try:
