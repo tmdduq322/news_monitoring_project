@@ -53,6 +53,7 @@ def generate_summary(data_list):
     prompt = f"""
     너는 뉴스 데이터 분석가야. 아래는 오늘 수집된 뉴스 기사 제목 리스트야.
     이 내용을 바탕으로 다음 형식에 맞춰 한국어로 요약해줘.
+    글에 하이라이트 넣지 말고 작성해줘.
     
     [데이터]
     {context}
@@ -197,7 +198,7 @@ def create_summary_page_in_notion(parent_page_id, summary_text, target_date):
     # 👇 [수정] properties에서 'Date'를 완전히 제거했습니다.
     # 오직 '제목'만 보냅니다.
     payload = {
-        "parent": {"database_id": database_id},
+        "parent": {"database_id": parent_page_id},
         "properties": {
             "제목": { 
                 "title": [
