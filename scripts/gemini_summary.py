@@ -29,7 +29,7 @@ if not NOTION_PAGE_ID:
 
 # Gemini 설정
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_yesterday_data(target_date):
     """DB에서 해당 날짜의 주요 기사 제목 추출"""
@@ -40,7 +40,7 @@ def get_yesterday_data(target_date):
                 SELECT keyword, title ,original_article_url
                 FROM news_posts 
                 WHERE DATE(crawled_at) = '{target_date}'
-                ORDER BY copy_rate DESC LIMIT 50
+                ORDER BY copy_rate DESC LIMIT 100
             """
             cursor.execute(sql)
             results = cursor.fetchall()
