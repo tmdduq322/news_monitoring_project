@@ -109,17 +109,6 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
-    parser.add_argument("--debug", action="store_true", help="브라우저 보이기 (헤드리스 끄기)")
-    
-    args = parser.parse_args()
-
-    # 👇 [추가] debug 옵션이 있으면 환경변수 설정 (utils.py가 이걸 읽음)
-    if args.debug:
-        print("🔧 디버그 모드 ON: 브라우저가 화면에 표시됩니다.")
-        os.environ["HEADLESS"] = "false"
-    else:
-        os.environ["HEADLESS"] = "true"
-        
     # 1. 날짜 변환
     try:
         start_date_obj = datetime.strptime(args.start_date, "%Y-%m-%d").date()

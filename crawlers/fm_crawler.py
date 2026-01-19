@@ -236,13 +236,12 @@ def fm_main_crw(searchs, start_date, end_date, stop_event):
     wd_dp1.quit()
     
     # 결과 병합
-    result_dir = os.path.join(project_root, 'data', 'raw')
-    try:
-        all_data = pd.concat([
-            result_csv_data(search, platform='에펨코리아', subdir=f'23.에펨코리아/{target_date}', base_path='data/raw')
-            for search in searchs
-        ])
-        all_data.to_csv(os.path.join(result_dir, f'에펨코리아_raw_{target_date}.csv'), encoding='utf-8', index=False)
-        logging.info(f"최종 병합 완료: 에펨코리아_raw_{target_date}.csv")
-    except ValueError:
-        logging.warning("수집된 데이터가 없습니다.")
+    if not stop_event.is_set():
+            result_dir = os.path.join(project_root, '결과', '에펨코리아')
+            os.makedirs(result_dir, exist_ok=True)
+
+            all_data = pd.concat([
+                result_csv_data(search, platform='에펨코리아', subdir=f'23.에펨코리아/{target_date}', base_path='data/raw')
+                for search in searchs
+            ])
+            all_data.to_csv(os.path.join(result_dir, f'에펨코리아_raw data_{target_date}.csv'), encoding='utf-8', index=False)
