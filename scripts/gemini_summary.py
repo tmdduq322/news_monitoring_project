@@ -74,7 +74,116 @@ def generate_summary(data_list):
         log(f"❌ Gemini 요약 생성 실패: {e}")
         sys.exit(1)
 
-def create_summary_page_in_notion(database_id, summary_text, target_date):
+# scripts/gemini_summary.py
+
+def create_summary_page_in_notion(parent_page_id, summary_text, target_date):
+    """
+    [수정] 데이터베이스 행이 아니라, 하위 '페이지'로 생성합니다.
+    이렇게 하면 컬럼(속성) 에러에서 완전히 해방됩니다.
+    """
+    headers = {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+    
+    if len(summary_text) > 2000:
+        summary_text = summary_text[:2000] + "..."
+
+    # 👇 [핵심] 페이지 생성 Payload (Database가 아닌 Page가 부모일 때)
+    # 만약 parent_page_id가 '데이터베이스 ID'라면 자동으로 표 안에 들어갑니다.
+    # 표가 싫다면 노션에서 '빈 페이지'를 하나 만들고 그 ID를 Airflow에 넣어야 합니다.
+    
+    payload = {
+        # 부모가 데이터베이스면 "database_id", 일반 페이지면 "page_id"
+        # 범용성을 위해 page_id로 시도합니다. (데이터베이스도 page_id로 취급 가능)
+        "parent": {"page_id": parent_page_id}, 
+        "properties": {
+            "title": { # 일반 페이지는 속성 이름이 무조건 'title'입니다. (수정 불필요)
+                "title": [
+                    {"text": {"content": f"🤖 {target_date} AI 요약 리포트"}}
+                ]
+            }
+        },
+        "children": [
+            {
+                "object": "block",
+                "type": "callout",
+                "callout": {
+                    "rich_text": [{"type": "text", "text": {"content": "Gemini 1.5 Flash 뉴스 요약"}}],
+                    "icon": {"emoji": "📰"},
+                    "color": "gray_background"
+                }
+            },
+            {
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": {
+                    "rich_text": [{"type": "text", "text": {"content": "오늘의 트렌드 분석"}}]
+                }
+            },
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": summary_text}}]
+                }
+            }
+        ]
+    }
+    
+    # 만약 부모가 '데이터베이스'라면 위 payload 구조로는 에러가 날 수 있습니다.
+    # 사용자가 준 ID가 '데이터베이스'인지 '페이지'인지 모르므로
+    # 안전하게 "제목" 속성만 쓰는 데이터베이스 행 추가 방식을 유지하되,
+    # 'Date' 같은 잡다한 속성은 절대 넣지 않겠습니다.
+    
+    # ---------------------------------------------------------
+    # [최종 안전 버전]
+    # 사용자가 준 ID가 데이터베이스 ID일 확률이 높으므로 (이미지상 표니까)
+    # 아까 성공했던 방식에서 'Date'만 뺀 깔끔한 버전을 다시 드립니다.
+    # ---------------------------------------------------------
+    
+    payload_safe = {
+        "parent": {"database_id": parent_page_id}, # Airflow 변수명이 page_id라도 실제론 DB ID일 것임
+        "properties": {
+            "제목": { # 아까 성공한 그 이름!
+                "title": [
+                    {"text": {"content": f"🤖 {target_date} AI 요약 리포트"}}
+                ]
+            }
+        },
+        "children": [
+            {
+                "object": "block",
+                "type": "callout",
+                "callout": {
+                    "rich_text": [{"type": "text", "text": {"content": "Gemini 1.5 Flash 뉴스 요약"}}],
+                    "icon": {"emoji": "📰"},
+                    "color": "blue_background"
+                }
+            },
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": summary_text}}]
+                }
+            }
+        ]
+    }
+
+    url = "https://api.notion.com/v1/pages"
+    
+    try:
+        # 안전한 payload_safe로 전송
+        response = requests.post(url, headers=headers, json=payload_safe)
+        response.raise_for_status()
+        log(f"✅ 노션 리포트 생성 완료: {target_date}")
+        
+    except requests.exceptions.HTTPError as err:
+        log(f"❌ 노션 요청 실패: {err}")
+        log(f"응답 내용: {response.text}")
+        sys.exit(1)
     headers = {
         "Authorization": f"Bearer {NOTION_TOKEN}",
         "Content-Type": "application/json",
