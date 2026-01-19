@@ -32,20 +32,50 @@ def filter_untrusted_posts(all_data, untrusted_file, trusted_file):
 
 def filter_da(df_filtered):
     def has_valid_da(text):
+        """
+        본문에 '~다.' 형태가 포함되어 있는지 확인하는 함수
+        """
         text = str(text)
-        matches = list(re.finditer(r"다\.", text))
+        # '다' 뒤에 공백이 있거나 붙어서 점(.)이 나오는 경우 찾기
+        matches = list(re.finditer(r"다\s*\.", text))
+        
         for match in matches:
             start = match.start()
+            
+            # [예외] '니다.'는 보통 존댓말/댓글이므로 기사체로 보지 않고 패스
+            # (만약 '니다.'도 포함해서 수집하고 싶으면 이 if문을 지우세요)
             if start >= 1 and text[start - 1] == "니":
-                continue  # '니다.'이면 무시
+                continue  
+            
+            # '~다.' 발견됨 -> 이 글은 우리가 원하는 글임!
             return True
+            
+        # 끝까지 뒤졌는데 '~다.'가 없음 -> 우리가 원하는 글이 아님
         return False
 
     def should_remove(title, content):
-        has_valid = has_valid_da(title) or has_valid_da(content)
-        has_cartoon = "만평" in title or "만평" in content
-        return not has_valid or has_cartoon
+        """
+        삭제 여부를 결정하는 함수 (True면 삭제, False면 유지)
+        """
+        # 1. 제목이나 내용에 '다.'가 포함되어 있으면 -> 삭제하지 않음(False)
+        if has_valid_da(title) or has_valid_da(content):
+            return False 
+        
+        # 2. '다.'가 없으면 -> 삭제함(True)
+        return True
 
-    mask = df_filtered.apply(lambda row: should_remove(row["게시물 제목"], row["게시물 내용"]), axis=1)
-    df_final = df_filtered[~mask]
-    return df_final
+    # 결측값 처리
+    content_series = df_filtered["게시물 내용"].fillna("")
+    title_series = df_filtered["게시물 제목"].fillna("")
+
+    # apply 함수로 각 행 검사
+    mask = df_filtered.apply(lambda row: should_remove(row['게시물 제목'], row['게시물 내용']), axis=1)
+    
+    # mask가 True인(삭제해야 할) 애들을 제외(~)하고 남김
+    df_result = df_filtered[~mask]
+
+    # 데이터가 없으면 빈 DataFrame 반환
+    if df_result.empty:
+        df_result = df_filtered.iloc[0:0]
+
+    return df_result
