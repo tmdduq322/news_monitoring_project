@@ -29,6 +29,7 @@ def setup_driver():
     options.add_argument('--disable-gpu')
     options.add_argument('--headless') # 디버깅 시에는 주석 처리 가능
     options.add_argument('--disable-blink-features=AutomationControlled')
+    options.page_load_strategy = 'eager'
 
     # [핵심 수정] webdriver_manager가 알아서 버전을 맞춰 설치하게 함
     service = Service(ChromeDriverManager().install())

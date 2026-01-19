@@ -15,7 +15,11 @@ from .utils import setup_driver, save_to_csv, clean_title, result_csv_data
 def pp_crw(wd, url, search, target_date):
     try:
         logging.info(f"크롤링 시작: {url}")
-        wd.get(f'{url}')
+        try:
+            wd.get(f'{url}')
+        except TimeoutException:
+            logging.warning(f"⏰ 접속 타임아웃 (30초 초과): {url} -> 스킵합니다.")
+            return pd.DataFrame() # 빈 데이터프레임 반환하고 종료
         logging.info(f"접속: {url}")
         time.sleep(1)
         WebDriverWait(wd, 5).until(EC.presence_of_element_located((By.CLASS_NAME, 'board-contents')))
