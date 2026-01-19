@@ -1,6 +1,7 @@
 import os
 import pymysql
 import requests
+import argparse
 import google.generativeai as genai
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
