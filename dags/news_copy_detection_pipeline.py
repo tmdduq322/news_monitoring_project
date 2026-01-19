@@ -128,7 +128,6 @@ with DAG(
     gemini_summarize = BashOperator(
         task_id='gemini_summarize',
         bash_command=f'export PYTHONPATH=/opt/airflow; '
-                    f'pip install --upgrade google-generativeai && '
                     f'python3 /opt/airflow/scripts/gemini_summary.py '
                     f'--date "{{{{ ds }}}}" '
                     f'--page_id "{{{{ ti.xcom_pull(task_ids="upload_to_notion") }}}}"',

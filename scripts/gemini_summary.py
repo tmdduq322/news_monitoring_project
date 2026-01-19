@@ -17,7 +17,7 @@ DB_NAME = os.getenv("DB_NAME")
 
 # 제미나이 설정
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash-001')
+model = genai.GenerativeModel('gemini-2.5-flash')
 print("============== AVAILABLE MODELS ==============")
 try:
     for m in genai.list_models():
