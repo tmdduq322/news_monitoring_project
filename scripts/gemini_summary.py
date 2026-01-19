@@ -10,17 +10,24 @@ from extraction.core_utils import log
 # 1. 환경 변수 로드
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
+# [추가] DAG에서 받지 않고 여기서 직접 가져옵니다.
+NOTION_PAGE_ID = os.getenv("NOTION_PAGE_ID") 
+
 DB_HOST = os.getenv("DB_HOST")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 
-# API 키 확인
+# 필수 환경변수 확인
 if not GEMINI_API_KEY:
     log("❌ GEMINI_API_KEY가 설정되지 않았습니다.")
     sys.exit(1)
 
-# Gemini 설정 (최신 모델)
+if not NOTION_PAGE_ID:
+    log("❌ NOTION_PAGE_ID가 설정되지 않았습니다. .env 파일을 확인해주세요.")
+    sys.exit(1)
+
+# Gemini 설정
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.5-flash')
 
@@ -29,12 +36,11 @@ def get_yesterday_data(target_date):
     conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, db=DB_NAME, charset='utf8mb4')
     try:
         with conn.cursor() as cursor:
-            # copy_rate가 높은 순으로 데이터 조회
             sql = f"""
                 SELECT keyword, title 
                 FROM news_posts 
                 WHERE DATE(crawled_at) = '{target_date}'
-                ORDER BY copy_rate DESC LIMIT 50
+                ORDER BY copy_rate DESC LIMIT 100
             """
             cursor.execute(sql)
             results = cursor.fetchall()
@@ -51,6 +57,7 @@ def generate_summary(data_list):
         return "데이터가 없어 요약을 생성할 수 없습니다."
 
     context = "\n".join(data_list)
+    
     prompt = f"""
     너는 뉴스 데이터 분석가야. 아래는 오늘 수집된 뉴스 기사 제목 리스트야.
     이 내용을 바탕으로 다음 형식에 맞춰 한국어로 요약해줘.
@@ -59,14 +66,14 @@ def generate_summary(data_list):
     {context}
 
     [형식]
-     💡 오늘의 핵심 이슈 (3가지)
-    1. (이슈 1)
+    💡 오늘의 핵심 이슈 (3가지)
+    1. (이슈 1 - 2줄 이내로 간결하게)
     2. (이슈 2)
     3. (이슈 3)
 
-     🔥 트렌드 분석
-    (사람들의 관심사가 어디에 쏠려있는지 3문장으로 요약)
-    
+    🔥 트렌드 분석
+    (사람들의 관심사가 어디에 쏠려있는지 2문장으로 자연스럽게 요약)
+
     [주의사항]
     1. **굵게**, ## 헤더 같은 마크다운(Markdown) 문법을 절대 사용하지 마.
     2. 특수기호(*, #) 없이 깔끔한 줄글(Plain Text)로만 작성해.
@@ -75,14 +82,15 @@ def generate_summary(data_list):
     
     try:
         response = model.generate_content(prompt)
-        return response.text
+        # 마크다운 제거
+        return response.text.replace("**", "").replace("##", "").replace("###", "")
     except Exception as e:
         log(f"❌ Gemini 요약 생성 실패: {e}")
         sys.exit(1)
 
-def create_summary_page_in_notion(parent_page_id, summary_text, target_date):
+def create_summary_page_in_notion(summary_text, target_date):
     """
-    노션 페이지 생성 함수 (최종 수정 버전)
+    [수정] 인자에서 parent_page_id를 제거하고 전역 변수 NOTION_PAGE_ID를 사용합니다.
     """
     headers = {
         "Authorization": f"Bearer {NOTION_TOKEN}",
@@ -90,15 +98,14 @@ def create_summary_page_in_notion(parent_page_id, summary_text, target_date):
         "Notion-Version": "2022-06-28"
     }
     
-    # 본문 길이 제한 방지
     if len(summary_text) > 2000:
         summary_text = summary_text[:2000] + "..."
 
-    # Payload 설정
     payload = {
-        "parent": {"database_id": parent_page_id}, 
+        # 환경변수에서 가져온 ID 사용
+        "parent": {"page_id": NOTION_PAGE_ID}, 
         "properties": {
-            "제목": { 
+            "title": { 
                 "title": [
                     {"text": {"content": f"🤖 {target_date} AI 요약 리포트"}}
                 ]
@@ -143,7 +150,7 @@ def create_summary_page_in_notion(parent_page_id, summary_text, target_date):
         log(f"응답 내용: {response.text}")
         sys.exit(1)
 
-def run_gemini_pipeline(target_date, page_id):
+def run_gemini_pipeline(target_date):
     # 1. 데이터 가져오기
     news_data = get_yesterday_data(target_date)
     log(f"데이터 {len(news_data)}건 조회됨.")
@@ -156,17 +163,18 @@ def run_gemini_pipeline(target_date, page_id):
     summary = generate_summary(news_data)
     log("Gemini 요약 완료.")
     
-    # 3. 노션 등록 (여기서 딱 한 번만 호출합니다!)
-    create_summary_page_in_notion(page_id, summary, target_date)
+    # 3. 노션 등록
+    create_summary_page_in_notion(summary, target_date)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", help="데이터 조회 대상 날짜 (YYYY-MM-DD)")
-    parser.add_argument("--page_id", help="노션 데이터베이스 ID")
+    # [제거] --page_id 인자는 이제 안 받습니다.
+    
     args = parser.parse_args()
 
-    if args.date and args.page_id:
-        run_gemini_pipeline(args.date, args.page_id)
+    if args.date:
+        run_gemini_pipeline(args.date)
     else:
-        log("⚠️ 날짜와 Page ID가 필요합니다.")
+        log("⚠️ 날짜(--date) 파라미터가 필요합니다.")
         sys.exit(1)

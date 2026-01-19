@@ -115,22 +115,20 @@ with DAG(
         trigger_rule='all_success'
     )
     
-    # 6. 노션 업로드 (do_xcom_push를 통해 ID 전달)
+    # 6. 노션 업로드 
     notion_upload = BashOperator(
         task_id='upload_to_notion',
         bash_command=f'export PYTHONPATH=/opt/airflow; '
                     f'python3 /opt/airflow/scripts/upload_to_notion.py '
                     f'{{{{ ds }}}}', # 수집 날짜와 동일하게 어제 날짜 전달
-        do_xcom_push=True # 마지막 출력값(database_id)을 XCom에 저장
     )
 
     # 7. 제미나이 요약 (XCom에서 ID를 받아와 실행)
     gemini_summarize = BashOperator(
         task_id='gemini_summarize',
         bash_command=f'export PYTHONPATH=/opt/airflow; '
-                    f'python3 /opt/airflow/scripts/gemini_summary.py '
-                    f'--date "{{{{ ds }}}}" '
-                    f'--page_id "{{{{ ti.xcom_pull(task_ids="upload_to_notion") }}}}"',
+                     f'python3 /opt/airflow/scripts/gemini_summary.py '
+                     f'--date "{{{{ ds }}}}"', 
         trigger_rule='all_success'
     )
 
