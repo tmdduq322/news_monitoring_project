@@ -75,6 +75,65 @@ def generate_summary(data_list):
         sys.exit(1)
 
 def create_summary_page_in_notion(database_id, summary_text, target_date):
+    headers = {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+    
+    # 2000자 제한
+    if len(summary_text) > 2000:
+        summary_text = summary_text[:2000] + "..."
+
+    # 👇 [수정] properties에서 'Date'를 완전히 제거했습니다.
+    # 오직 '제목'만 보냅니다.
+    payload = {
+        "parent": {"database_id": database_id},
+        "properties": {
+            "제목": { 
+                "title": [
+                    {"text": {"content": f"🤖 {target_date} AI 요약 리포트"}}
+                ]
+            }
+        },
+        "children": [
+            {
+                "object": "block",
+                "type": "callout",
+                "callout": {
+                    "rich_text": [{"type": "text", "text": {"content": "Gemini 1.5 Flash가 분석한 오늘의 뉴스 요약"}}],
+                    "icon": {"emoji": "📰"},
+                    "color": "gray_background"
+                }
+            },
+            {
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": {
+                    "rich_text": [{"type": "text", "text": {"content": "요약 내용"}}]
+                }
+            },
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": summary_text}}]
+                }
+            }
+        ]
+    }
+    
+    url = "https://api.notion.com/v1/pages"
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        log(f"✅ 노션 페이지 생성 완료: {target_date}")
+        
+    except requests.exceptions.HTTPError as err:
+        log(f"❌ 노션 요청 실패: {err}")
+        log(f"응답 내용: {response.text}")
+        sys.exit(1)
     """
     [수정 2] '블록 추가(Append)' 대신 '페이지 생성(Create Page)' 방식 사용
     데이터베이스 ID가 넘어오면 그 안에 새로운 페이지를 만듭니다.
