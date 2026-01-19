@@ -17,8 +17,15 @@ DB_NAME = os.getenv("DB_NAME")
 
 # 제미나이 설정
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
-
+model = genai.GenerativeModel('gemini-1.5-flash-001')
+print("============== AVAILABLE MODELS ==============")
+try:
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            print(f"Model Name: {m.name}")
+except Exception as e:
+    print(f"모델 목록 조회 실패: {e}")
+print("============================================")
 def get_yesterday_data(target_date):
     """DB에서 전날 수집된 주요 기사 제목과 검색어(언론사) 추출"""
     conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, db=DB_NAME, charset='utf8mb4')
