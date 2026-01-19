@@ -26,7 +26,7 @@ def get_yesterday_data(target_date):
         with conn.cursor() as cursor:
             # 유사도가 높거나 많이 수집된 상위 20개 기사 추출
             sql = f"""
-                SELECT 검색어, 게시물 제목 
+                SELECT keyword, title 
                 FROM news_posts 
                 WHERE DATE(crawled_at) = '{target_date}'
                 ORDER BY copy_rate DESC LIMIT 50
