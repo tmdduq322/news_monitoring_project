@@ -21,28 +21,57 @@ def setup_driver():
     logging.info("웹드라이버 시작")
 
     options = Options()
-    # options.binary_location = "/usr/bin/chromium" # 필요시 주석 해제
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    
+    # [핵심 1] 한국어 언어 설정 (EC2는 이게 없으면 봇으로 의심받음)
+    options.add_argument("--lang=ko_KR")
+    options.add_argument("accept-language=ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
+
+    # [핵심 2] 봇 탐지 회피용 User-Agent
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     options.add_argument(f"user-agent={user_agent}")
+    
+    # 서버 환경 설정
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    options.add_argument('--headless') # 디버깅 시에는 주석 처리 가능
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.page_load_strategy = 'eager'
-
-    # [핵심 수정] webdriver_manager가 알아서 버전을 맞춰 설치하게 함
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
     
-    # 탐지 방지 설정
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
-    })
-        
-    return driver
+    # 최신 헤드리스 모드
+    options.add_argument('--headless=new') 
+    
+    # 화면 크기 (반응형 사이트 구조 변경 방지)
+    options.add_argument('--window-size=1920,1080')
+    options.add_argument('--start-maximized')
 
-# ... (나머지 result_csv_data, save_to_csv, clean_title 함수는 그대로 유지) ...
+    # 자동화 탐지 방지
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+
+    try:
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+        
+        # [핵심 3] navigator.webdriver 속성 숨기기 (자바스크립트 탐지 우회)
+        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+            "source": """
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['ko-KR', 'ko', 'en-US', 'en']
+                });
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5]
+                });
+            """
+        })
+        
+        return driver
+        
+    except Exception as e:
+        logging.error(f"❌ 웹드라이버 실행 실패: {e}")
+        raise e
+    
 def result_csv_data(search, platform, subdir, base_path='csv'):
     file_path = os.path.join(base_path, subdir, today, f'{platform}_{search}.csv')
     if not os.path.isfile(file_path):

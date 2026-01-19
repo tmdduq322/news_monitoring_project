@@ -25,7 +25,14 @@ with DAG(
     # 전체 DAG 수준에서도 동시에 돌아가는 태스크 수 제한 (안전을 위해 2로 설정)
     max_active_tasks=2,
 ) as dag:
-
+    # 사이트 디버깅 코드
+    # docker-compose run --rm airflow-scheduler bash -c "rm -rf ~/.wdm && python3 
+    # /opt/airflow/scripts/crawl_all_sites.py 
+    # --site '에펨코리아' 
+    # --start_date 2026-01-19 
+    # --end_date 2026-01-19
+    # --search_excel /opt/airflow/config/search_keywords_2025.xlsx"
+    
     # 1. 사이트 그룹별 병렬 크롤링 (2개 조로 분산 - 로드 밸런싱 적용)
     with TaskGroup("crawl_tasks", tooltip="사이트 그룹별 병렬 크롤링") as crawl_group:
         
