@@ -5,6 +5,7 @@ import requests
 import argparse
 import google.generativeai as genai
 from datetime import datetime, timedelta
+from google.api_core import exceptions
 from extraction.core_utils import log
 
 # 1. 환경 변수 로드
@@ -104,6 +105,7 @@ def generate_summary(data_list):
             
     log("❌ 최대 재시도 횟수 초과. 요약 생성 실패.")
     sys.exit(1)
+    
 def create_summary_page_in_notion(summary_text, target_date):
     """
     [수정] 인자에서 parent_page_id를 제거하고 전역 변수 NOTION_PAGE_ID를 사용합니다.
