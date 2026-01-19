@@ -17,7 +17,7 @@ DB_NAME = os.getenv("DB_NAME")
 
 # 제미나이 설정
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_yesterday_data(target_date):
     """DB에서 전날 수집된 주요 기사 제목과 검색어(언론사) 추출"""
