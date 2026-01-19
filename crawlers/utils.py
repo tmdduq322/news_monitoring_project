@@ -22,22 +22,23 @@ def setup_driver():
 
     options = Options()
     
-    # [수정 1] Eager 모드는 유지하되, 나중에 Wait를 강화해서 보완
+    # [중요] 페이지 로딩 전략: Eager (내용만 뜨면 진행)
     options.page_load_strategy = 'eager'
     
-    # [수정 2] 하드코딩된 User-Agent 삭제! (이게 버전 불일치 주범)
-    # 셀레니움이 알아서 내 PC의 크롬 버전에 맞는 UA를 보냅니다.
+    # [핵심 수정] User-Agent 강제 설정 삭제!
+    # Dockerfile이 최신 크롬을 설치하므로, 셀레니움이 알아서 최신 UA를 쓰게 둬야 합니다.
+    # 대신 한국어 설정은 필수입니다 (루리웹 차단 방지)
     options.add_argument("--lang=ko_KR")
     options.add_argument("accept-language=ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
     
-    # [수정 3] 로컬에서는 창을 보고 싶을 수 있으니 headless는 환경변수로 제어하거나 일단 끄기
-    # (AWS에서는 어차피 docker-compose 등에서 headless로 설정하거나, 여기서 True로 해도 됨)
-    # 여기선 'new'로 유지하되, 로컬 디버깅 시엔 이 줄을 주석 처리하면 화면이 보입니다.
-    options.add_argument('--headless=new') 
-    
+    # Docker/Server 환경 필수 설정
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
+    
+    # [설정] 로컬 테스트할 때 화면 보고 싶으면 아래 줄 주석 처리 (#) 하세요
+    options.add_argument('--headless=new') 
+    
     options.add_argument('--window-size=1920,1080')
     options.add_argument('--start-maximized')
     options.add_argument('--disable-blink-features=AutomationControlled')
@@ -45,14 +46,14 @@ def setup_driver():
     options.add_experimental_option('useAutomationExtension', False)
 
     try:
-        # 드라이버 설치 (버전 자동 매칭)
+        # ChromeDriverManager가 설치된 크롬 버전을 감지해 맞는 드라이버를 가져옴
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
         
-        # 타임아웃 기본 설정
-        driver.set_page_load_timeout(30) 
+        # 기본 타임아웃 설정
+        driver.set_page_load_timeout(30)
         
-        # JS 탐지 회피 (Navigator 속성 조작)
+        # 봇 탐지 스크립트 우회
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
             "source": """
                 Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
@@ -65,63 +66,10 @@ def setup_driver():
         
     except Exception as e:
         logging.error(f"❌ 웹드라이버 실행 실패: {e}")
+        # 캐시 충돌 방지용 삭제 로직
         wdm_cache = os.path.expanduser("~/.wdm")
         if os.path.exists(wdm_cache):
             shutil.rmtree(wdm_cache)
-        raise e
-    logging.info("웹드라이버 시작")
-
-    options = Options()
-    options.page_load_strategy = 'eager'
-    
-    # [핵심 1] 한국어 언어 설정 (EC2는 이게 없으면 봇으로 의심받음)
-    options.add_argument("--lang=ko_KR")
-    options.add_argument("accept-language=ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
-
-    # [핵심 2] 봇 탐지 회피용 User-Agent
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    options.add_argument(f"user-agent={user_agent}")
-    
-    # 서버 환경 설정
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    
-    # 최신 헤드리스 모드
-    options.add_argument('--headless=new') 
-    
-    # 화면 크기 (반응형 사이트 구조 변경 방지)
-    options.add_argument('--window-size=1920,1080')
-    options.add_argument('--start-maximized')
-
-    # 자동화 탐지 방지
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-
-    try:
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=options)
-        
-        # [핵심 3] navigator.webdriver 속성 숨기기 (자바스크립트 탐지 우회)
-        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-            "source": """
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-                Object.defineProperty(navigator, 'languages', {
-                    get: () => ['ko-KR', 'ko', 'en-US', 'en']
-                });
-                Object.defineProperty(navigator, 'plugins', {
-                    get: () => [1, 2, 3, 4, 5]
-                });
-            """
-        })
-        
-        return driver
-        
-    except Exception as e:
-        logging.error(f"❌ 웹드라이버 실행 실패: {e}")
         raise e
     
 def result_csv_data(search, platform, subdir, base_path='csv'):
