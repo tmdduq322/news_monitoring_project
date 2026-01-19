@@ -85,14 +85,25 @@ def generate_summary(data_list):
     3. 문장은 명확하고 간결하게 끝맺어줘.
     """
     
-    try:
-        response = model.generate_content(prompt)
-        # 마크다운 제거
-        return response.text.replace("**", "").replace("##", "").replace("###", "")
-    except Exception as e:
-        log(f"❌ Gemini 요약 생성 실패: {e}")
-        sys.exit(1)
-
+    # 👇 [핵심] 429 에러(Quota) 발생 시 대기 후 재시도
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = model.generate_content(prompt)
+            text = response.text.replace("**", "").replace("##", "").replace("###", "")
+            return text
+            
+        except exceptions.ResourceExhausted as e:
+            wait_time = 60 # 60초 대기
+            log(f"⚠️ 사용량 초과(429). {wait_time}초 후 재시도합니다... ({attempt + 1}/{max_retries})")
+            time.sleep(wait_time)
+            
+        except Exception as e:
+            log(f"❌ Gemini 요약 생성 실패 (알 수 없는 오류): {e}")
+            time.sleep(10)
+            
+    log("❌ 최대 재시도 횟수 초과. 요약 생성 실패.")
+    sys.exit(1)
 def create_summary_page_in_notion(summary_text, target_date):
     """
     [수정] 인자에서 parent_page_id를 제거하고 전역 변수 NOTION_PAGE_ID를 사용합니다.
