@@ -37,7 +37,7 @@ def get_yesterday_data(target_date):
     try:
         with conn.cursor() as cursor:
             sql = f"""
-                SELECT keyword, title 
+                SELECT keyword, title ,original_article_url
                 FROM news_posts 
                 WHERE DATE(crawled_at) = '{target_date}'
                 ORDER BY copy_rate DESC LIMIT 100
@@ -59,7 +59,7 @@ def generate_summary(data_list):
     context = "\n".join(data_list)
     
     prompt = f"""
-    너는 뉴스 데이터 분석가야. 아래는 오늘 수집된 뉴스 기사 제목 리스트야.
+    너는 뉴스 데이터 분석가야. 아래는 오늘 수집된 뉴스 기사 제목과 원문기사url 리스트야.
     이 내용을 바탕으로 다음 형식에 맞춰 한국어로 요약해줘.
     
     [데이터]
@@ -72,7 +72,10 @@ def generate_summary(data_list):
     3. (이슈 3)
 
     🔥 트렌드 분석
-    (사람들의 관심사가 어디에 쏠려있는지 2문장으로 자연스럽게 요약)
+    (사람들의 관심사가 어디에 쏠려있는지 3문장으로 자연스럽게 요약)
+    
+    📰 주요뉴스 확인
+    (사람들이 관심있는 이슈과 가장 연관있는 기사의 url 3개 추천)
 
     [주의사항]
     1. **굵게**, ## 헤더 같은 마크다운(Markdown) 문법을 절대 사용하지 마.
@@ -116,7 +119,7 @@ def create_summary_page_in_notion(summary_text, target_date):
                 "object": "block",
                 "type": "callout",
                 "callout": {
-                    "rich_text": [{"type": "text", "text": {"content": "Gemini 1.5 Flash 뉴스 요약"}}],
+                    "rich_text": [{"type": "text", "text": {"content": "Gemini 2.5 Flash 뉴스 요약"}}],
                     "icon": {"emoji": "📰"},
                     "color": "gray_background"
                 }
