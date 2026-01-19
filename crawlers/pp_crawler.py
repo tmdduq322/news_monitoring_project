@@ -140,9 +140,9 @@ def pp_main_crw(searchs, start_date, end_date, stop_event):
         force=True 
     )
 
-    # 데이터 저장용 폴더 미리 생성 (안전장치)
-    data_dir = os.path.join(project_root, 'data', 'raw', '1.뽐뿌', target_date)
-    os.makedirs(data_dir, exist_ok=True)
+    current_dir = os.path.dirname(__file__)
+    save_path = os.path.join(current_dir, '..', 'data', 'raw', '1.뽐뿌', target_date)
+    os.makedirs(save_path, exist_ok=True)
 
     logging.info(f"========================================================")
     logging.info(f"             뽐뿌 크롤링 시작 (Date: {target_date})")
@@ -206,17 +206,12 @@ def pp_main_crw(searchs, start_date, end_date, stop_event):
     wd.quit()
     wd_dp1.quit()
 
-    # 결과 병합 및 저장
-    result_dir = os.path.join(project_root, 'data', 'raw') # 필요시 '결과/뽐뿌'로 변경 가능
-    os.makedirs(result_dir, exist_ok=True)
+    if not stop_event.is_set():
+        result_dir = os.path.join(project_root, '결과', '뽐뿌')
+        os.makedirs(result_dir, exist_ok=True)
 
-    # [수정 2] subdir에 target_date를 포함하여 해당 날짜 폴더에서 데이터를 읽어오도록 설정
-    try:
         all_data = pd.concat([
             result_csv_data(search, platform='뽐뿌', subdir=f'1.뽐뿌/{target_date}', base_path='data/raw')
             for search in searchs
         ])
-        # 최종 파일명
-        all_data.to_csv(os.path.join(result_dir, f'뽐뿌_raw_{target_date}.csv'), encoding='utf-8', index=False)
-    except ValueError:
-        logging.warning("수집된 데이터가 없어 병합할 파일이 없습니다.")
+        all_data.to_csv(os.path.join(result_dir, f'뽐뿌_raw data_{target_date}.csv'), encoding='utf-8', index=False)
