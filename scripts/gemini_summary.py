@@ -87,24 +87,44 @@ def generate_summary(data_list):
     3. 문장은 명확하고 간결하게 끝맺어줘.
     """
     
-    # 👇 [핵심] 429 에러(Quota) 발생 시 대기 후 재시도
-    max_retries = 3
-    for attempt in range(max_retries):
+   max_retries = 3 # 키가 많으면 시도 횟수도 넉넉하게
+    attempt = 0
+    
+    while attempt < max_retries:
         try:
+            log(f"🤖 Gemini 요청 시작 (Key #{current_key_index + 1}, 시도 {attempt + 1})...")
             response = model.generate_content(prompt)
             text = response.text.replace("**", "").replace("##", "").replace("###", "")
             return text
             
-        except exceptions.ResourceExhausted as e:
-            wait_time = 60 # 60초 대기
-            log(f"⚠️ 사용량 초과(429). {wait_time}초 후 재시도합니다... ({attempt + 1}/{max_retries})")
-            time.sleep(wait_time)
-            
         except Exception as e:
-            log(f"❌ Gemini 요약 생성 실패 (알 수 없는 오류): {e}")
-            time.sleep(10)
+            error_msg = str(e)
             
-    log("❌ 최대 재시도 횟수 초과. 요약 생성 실패.")
+            # 429(Too Many Requests) 또는 Quota 에러 발생 시 키 교체
+            if "429" in error_msg or "Quota" in error_msg or "ResourceExhausted" in error_msg:
+                log(f"⚠️ 현재 키(#{current_key_index + 1}) 한도 초과!")
+                
+                # 다음 키가 있는지 확인
+                if len(API_KEYS) > 1:
+                    # 다음 키로 인덱스 변경 (순환)
+                    current_key_index = (current_key_index + 1) % len(API_KEYS)
+                    log(f"♻️ 다음 키(#{current_key_index + 1})로 교체합니다...")
+                    configure_genai(current_key_index) # 모델 재설정
+                    time.sleep(2) # 교체 후 아주 잠깐 대기
+                    # retry 카운트는 늘리지 않고 바로 다시 시도 (키 바꿨으니까)
+                    continue 
+                else:
+                    # 키가 하나뿐이면 어쩔 수 없이 대기
+                    wait_time = 60
+                    log(f"⏳ 예비 키가 없습니다. {wait_time}초 대기합니다...")
+                    time.sleep(wait_time)
+                    attempt += 1
+            else:
+                log(f"⚠️ 알 수 없는 오류: {error_msg}")
+                time.sleep(10)
+                attempt += 1
+            
+    log("❌ 모든 키와 재시도 횟수를 소진했습니다. 실패.")
     sys.exit(1)
     
 def create_summary_page_in_notion(summary_text, target_date):
