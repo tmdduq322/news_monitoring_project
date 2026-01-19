@@ -1,11 +1,11 @@
 import os
+import sys
 import pymysql
 import requests
 import argparse
 import google.generativeai as genai
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
-from extraction.core_utils import log, clean_text  # 기존 유틸리티 활용
+from extraction.core_utils import log  # clean_text는 안 쓰면 제거
 
 # 1. 환경 변수 로드
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -15,73 +15,108 @@ DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 
-# 제미나이 설정
+# [수정 1] 모델명 교체 (2.5 -> 1.5-flash) 및 API 키 설정 확인
+if not GEMINI_API_KEY:
+    log("❌ GEMINI_API_KEY가 설정되지 않았습니다.")
+    sys.exit(1)
+
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.5-flash')
-print("============== AVAILABLE MODELS ==============")
-try:
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            print(f"Model Name: {m.name}")
-except Exception as e:
-    print(f"모델 목록 조회 실패: {e}")
-print("============================================")
+
 def get_yesterday_data(target_date):
-    """DB에서 전날 수집된 주요 기사 제목과 검색어(언론사) 추출"""
+    """DB에서 해당 날짜의 주요 기사 제목 추출"""
     conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, db=DB_NAME, charset='utf8mb4')
     try:
         with conn.cursor() as cursor:
-            # 유사도가 높거나 많이 수집된 상위 20개 기사 추출
+            # copy_rate가 높은 순으로 데이터 조회
             sql = f"""
                 SELECT keyword, title 
                 FROM news_posts 
                 WHERE DATE(crawled_at) = '{target_date}'
-                ORDER BY copy_rate DESC LIMIT 50
+                ORDER BY copy_rate DESC LIMIT 30
             """
             cursor.execute(sql)
             results = cursor.fetchall()
-            return [f"[{row[0]}] {row[1]}" for row in results]
+            return [f"- [{row[0]}] {row[1]}" for row in results]
+    except Exception as e:
+        log(f"❌ DB 조회 실패: {e}")
+        sys.exit(1)
     finally:
         conn.close()
 
 def generate_summary(data_list):
     """제미나이를 이용한 트렌드 요약 생성"""
     if not data_list:
-        return "조회된 데이터가 없어 요약을 생성할 수 없습니다."
+        return "데이터가 없어 요약을 생성할 수 없습니다."
 
     context = "\n".join(data_list)
     prompt = f"""
-    너는 뉴스 데이터 분석가야. 아래 리스트는 오늘 커뮤니티에서 가장 많이 공유된 뉴스 기사 제목들이야.
-    이 데이터들을 분석해서 다음 양식으로 요약해줘:
-
-    1. 💡 오늘의 핵심 이슈 (3줄 이내)
-    2. 🔥 사람들의 관심사가 집중된 이유
-
-    [데이터 리스트]
+    너는 뉴스 데이터 분석가야. 아래는 오늘 수집된 뉴스 기사 제목 리스트야.
+    이 내용을 바탕으로 다음 형식에 맞춰 한국어로 요약해줘.
+    
+    [데이터]
     {context}
+
+    [형식]
+    ### 💡 오늘의 핵심 이슈 (3가지)
+    1. (이슈 1)
+    2. (이슈 2)
+    3. (이슈 3)
+
+    ### 🔥 트렌드 분석
+    (사람들의 관심사가 어디에 쏠려있는지 2문장으로 요약)
     """
     
-    response = model.generate_content(prompt)
-    return response.text
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        log(f"❌ Gemini 요약 생성 실패: {e}")
+        sys.exit(1)
 
-def add_summary_to_notion(page_id, summary_text):
-    """노션 페이지 최상단에 요약 블록 추가"""
+def create_summary_page_in_notion(database_id, summary_text, target_date):
+    """
+    [수정 2] '블록 추가(Append)' 대신 '페이지 생성(Create Page)' 방식 사용
+    데이터베이스 ID가 넘어오면 그 안에 새로운 페이지를 만듭니다.
+    """
     headers = {
         "Authorization": f"Bearer {NOTION_TOKEN}",
         "Content-Type": "application/json",
         "Notion-Version": "2022-06-28"
     }
     
-    # 요약 내용을 노션 '인용(Quote)' 및 '콜아웃(Callout)' 블록으로 변환
+    # 3000자 제한 방지 (간단히 자르기)
+    if len(summary_text) > 2000:
+        summary_text = summary_text[:2000] + "..."
+
+    # 페이지 생성 페이로드 (Parent를 Database로 설정)
     payload = {
+        "parent": {"database_id": database_id},
+        "properties": {
+            "Name": { # 데이터베이스의 제목 컬럼명이 'Name' 또는 '제목'인지 확인 필요 (보통 기본값은 Name/title)
+                "title": [
+                    {"text": {"content": f"🤖 {target_date} AI 요약 리포트"}}
+                ]
+            },
+            "Date": { # 날짜 컬럼이 있다면 추가 (없으면 에러날 수 있으니 주의. 필요시 주석 처리)
+                 "date": {"start": target_date}
+            }
+        },
         "children": [
             {
                 "object": "block",
                 "type": "callout",
                 "callout": {
-                    "rich_text": [{"type": "text", "text": {"content": "🤖 Gemini AI 트렌드 요약"}}],
-                    "icon": {"emoji": "💡"},
-                    "color": "blue_background"
+                    "rich_text": [{"type": "text", "text": {"content": "Gemini 1.5 Flash가 분석한 오늘의 뉴스 요약입니다."}}],
+                    "icon": {"emoji": "📰"},
+                    "color": "gray_background"
+                }
+            },
+            {
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": {
+                    "rich_text": [{"type": "text", "text": {"content": "요약 내용"}}]
                 }
             },
             {
@@ -90,47 +125,48 @@ def add_summary_to_notion(page_id, summary_text):
                 "paragraph": {
                     "rich_text": [{"type": "text", "text": {"content": summary_text}}]
                 }
-            },
-            {
-                "object": "block",
-                "type": "divider",
-                "divider": {}
             }
         ]
     }
     
-    # 페이지의 콘텐츠(blocks) 최상단에 추가하기 위해 PATCH 요청 사용
-    url = f"https://api.notion.com/v1/blocks/{page_id}/children"
-    response = requests.patch(url, headers=headers, json=payload)
+    # [중요] Endpoint 변경: v1/pages (페이지 생성)
+    url = "https://api.notion.com/v1/pages"
     
-    if response.status_code == 200:
-        log("✅ 노션 페이지 요약 추가 완료")
-    else:
-        log(f"❌ 노션 업데이트 실패: {response.text}")
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status() # 400/500 에러 시 즉시 예외 발생
+        log(f"✅ 노션 페이지 생성 완료: {target_date}")
+        
+    except requests.exceptions.HTTPError as err:
+        log(f"❌ 노션 요청 실패: {err}")
+        log(f"응답 내용: {response.text}")
+        # [수정 3] 에러 발생 시 시스템 종료 코드 1 반환 -> Airflow Task Failed 처리
+        sys.exit(1)
 
-def run_gemini_pipeline(target_date, notion_page_id):
-    """전체 요약 파이프라인 실행"""
-    log(f"🚀 {target_date} 데이터 기반 AI 요약 시작")
-    
+def run_gemini_pipeline(target_date, page_id):
     # 1. 데이터 가져오기
     news_data = get_yesterday_data(target_date)
+    log(f"데이터 {len(news_data)}건 조회됨.")
     
+    if not news_data:
+        log("데이터가 없어 종료합니다.")
+        return
+
     # 2. 제미나이 요약 생성
     summary = generate_summary(news_data)
+    log("Gemini 요약 완료.")
     
-    # 3. 노션 업데이트
-    add_summary_to_notion(notion_page_id, summary)
+    # 3. 노션 등록
+    create_summary_page_in_notion(page_id, summary, target_date)
 
 if __name__ == "__main__":
-    # [핵심 수정] 명령줄 인자 파싱 로직 추가
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", help="데이터 조회 대상 날짜 (YYYY-MM-DD)")
-    parser.add_argument("--page_id", help="요약을 추가할 노션 페이지/데이터베이스 ID")
+    parser.add_argument("--page_id", help="노션 데이터베이스 ID")
     args = parser.parse_args()
 
     if args.date and args.page_id:
         run_gemini_pipeline(args.date, args.page_id)
     else:
-        # 인자가 없을 경우 기본값(어제 날짜)으로 동작 (테스트용)
-        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-        log("⚠️ 인자가 부족하여 기본 설정을 시도합니다.")
+        log("⚠️ 날짜와 Page ID가 필요합니다.")
+        sys.exit(1)
