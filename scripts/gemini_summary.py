@@ -39,7 +39,7 @@ def get_yesterday_data(target_date):
     try:
         with conn.cursor() as cursor:
             sql = f"""
-                SELECT keyword, title 
+                SELECT keyword, title ,original_article_url
                 FROM news_posts 
                 WHERE DATE(crawled_at) = '{target_date}'
                 ORDER BY copy_rate DESC LIMIT 100
@@ -76,6 +76,15 @@ def generate_summary(data_list):
     🔥 트렌드 분석
     (사람들의 관심사가 어디에 쏠려있는지 3문장으로 자연스럽게 요약)
     
+    📰 주요 뉴스 바로가기 (3개 추천)
+    (위 이슈와 가장 관련성 높은 실제 기사 3개를 골라서 아래 형식으로 작성해)
+    - [기사 제목](기사 URL)
+    - [기사 제목](기사 URL)
+    - [기사 제목](기사 URL)
+    [주의사항]
+    1. **굵게**, ## 헤더 같은 마크다운(Markdown) 문법을 절대 사용하지 마.
+    2. 특수기호(*, #) 없이 깔끔한 줄글(Plain Text)로만 작성해.
+    3. 문장은 명확하고 간결하게 끝맺어줘.
     """
     
     # 👇 [핵심] 429 에러(Quota) 발생 시 대기 후 재시도

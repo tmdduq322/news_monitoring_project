@@ -126,7 +126,8 @@ with DAG(
     # 7. 제미나이 요약 (XCom에서 ID를 받아와 실행)
     gemini_summarize = BashOperator(
         task_id='gemini_summarize',
-        bash_command=f'export PYTHONPATH=/opt/airflow; '
+        bash_command=f'export PYTHONUNBUFFERED=1; '
+                     f'export PYTHONPATH=/opt/airflow; '
                      f'python3 /opt/airflow/scripts/gemini_summary.py '
                      f'--date "{{{{ ds }}}}"', 
         trigger_rule='all_success'
