@@ -155,6 +155,7 @@ if __name__ == "__main__":
     stop_event = multiprocessing.Event()
 
     for site_name in sites_to_crawl:
+        time.sleep(5)
         crawler_func = crawlers[site_name]
         print(f"\n🚀 [{site_name}] 크롤링 시작... ({IDLE_TIMEOUT}초 무응답 시 종료)")
         
