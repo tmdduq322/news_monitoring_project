@@ -217,6 +217,10 @@ services:
   # 웹서버 (UI 접속용 - 필수)
   airflow-webserver:
     <<: *airflow-common
+    depends_on:
+      news_mysql_db:
+        condition: service_healthy # DB의 healthcheck가 통과될 때까지 대기
+    restart: always
     command: webserver
     ports:
       - "8080:8080"
@@ -230,6 +234,7 @@ services:
   # 스케줄러 (LocalExecutor이므로 여기서 작업 실행도 같이 함 - 필수)
   airflow-scheduler:
     <<: *airflow-common
+    restart: always
     shm_size: '2gb' # 공유 메모리를 2GB
     command: scheduler
 

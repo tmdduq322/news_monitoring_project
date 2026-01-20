@@ -132,6 +132,14 @@ with DAG(
                      f'--date "{{{{ ds }}}}"', 
         trigger_rule='all_success'
     )
-
+    
+    # 8. 인스턴스 즉시 종료 태스크
+    instance_stop = BashOperator(
+        task_id='instance_stop_now',
+        # +360 대신 now를 사용하여 즉시 종료
+        bash_command='sudo shutdown -h now', 
+        # 작업 성공/실패 여부와 상관없이 무조건 종료하여 비용 발생 방지
+        trigger_rule='all_done' 
+    )
     # 작업 순서 연결
-    crawl_group >> merge >> process >> extract_group >> save_db >> notion_upload >> gemini_summarize
+    crawl_group >> merge >> process >> extract_group >> save_db >> notion_upload >> gemini_summarize >> instance_stop
