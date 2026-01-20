@@ -59,8 +59,10 @@ def get_yesterday_data(target_date):
             sql = f"""
                 SELECT keyword, title, original_article_url
                 FROM news_posts 
-                WHERE DATE(crawled_at) = '{target_date}'
-                ORDER BY copy_rate DESC LIMIT 200
+                WHERE DATE(crawled_at) = '{target_date}' 
+                AND copy_rate > 0.3
+                ORDER BY copy_rate DESC 
+                LIMIT 200
             """
             cursor.execute(sql)
             results = cursor.fetchall()
