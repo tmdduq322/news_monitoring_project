@@ -1,22 +1,16 @@
 import os
 import sys
 import time
+import re  # 👈 링크 파싱을 위한 정규표현식 모듈 추가
 import pymysql
 import requests
 import argparse
 import google.generativeai as genai
-from datetime import datetime
+from datetime import datetime, timedelta
+from extraction.core_utils import log
 
 # 1. 환경 변수 로드
-# 콤마(,)로 구분된 여러 개의 키를 리스트로 만듭니다.
-keys_env = os.getenv("GEMINI_API_KEYS") # .env에 GEMINI_API_KEYS=키1,키2 형식으로 저장
-if not keys_env:
-    # 혹시 기존 변수명(GEMINI_API_KEY)을 쓰고 있을 경우를 대비
-    keys_env = os.getenv("GEMINI_API_KEY")
-
-API_KEYS = keys_env.split(',') if keys_env else []
-current_key_index = 0
-
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 NOTION_PAGE_ID = os.getenv("NOTION_PAGE_ID") 
 DB_HOST = os.getenv("DB_HOST")
@@ -24,34 +18,22 @@ DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 
-# 로그 출력 함수 (즉시 출력)
+# 로그 출력 함수
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {message}", flush=True)
 
-if not API_KEYS:
-    log("❌ GEMINI_API_KEYS가 설정되지 않았습니다.")
+if not GEMINI_API_KEY:
+    log("❌ GEMINI_API_KEY가 설정되지 않았습니다.")
     sys.exit(1)
 
 if not NOTION_PAGE_ID:
     log("❌ NOTION_PAGE_ID가 설정되지 않았습니다.")
     sys.exit(1)
 
-# 초기 설정
-def configure_genai(key_index):
-    """지정된 인덱스의 키로 Gemini를 재설정합니다."""
-    global model
-    try:
-        current_key = API_KEYS[key_index].strip()
-        genai.configure(api_key=current_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        log(f"🔑 API Key #{key_index + 1} 적용 완료 (총 {len(API_KEYS)}개)")
-    except Exception as e:
-        log(f"❌ API Key 설정 중 오류: {e}")
-        sys.exit(1)
-
-# 최초 1회 설정
-configure_genai(current_key_index)
+# Gemini 설정
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 def get_yesterday_data(target_date):
     """DB에서 해당 날짜의 주요 기사 제목 + URL 추출"""
@@ -62,7 +44,7 @@ def get_yesterday_data(target_date):
                 SELECT keyword, title, original_article_url
                 FROM news_posts 
                 WHERE DATE(crawled_at) = '{target_date}'
-                ORDER BY copy_rate DESC LIMIT 50
+                ORDER BY copy_rate DESC LIMIT 100
             """
             cursor.execute(sql)
             results = cursor.fetchall()
@@ -83,9 +65,7 @@ def get_yesterday_data(target_date):
         conn.close()
 
 def generate_summary(data_list):
-    """제미나이를 이용한 트렌드 요약 생성 (키 로테이션 + 재시도)"""
-    global current_key_index
-    
+    """제미나이를 이용한 트렌드 요약 생성"""
     if not data_list:
         return "데이터가 없어 요약을 생성할 수 없습니다."
 
@@ -120,45 +100,105 @@ def generate_summary(data_list):
     3. URL은 내가 제공한 [데이터]에 있는 것만 그대로 사용해야 해. 절대 지어내지 마.
     """
     
-    max_retries = 3 # 키가 많으면 시도 횟수도 넉넉하게
-    attempt = 0
-    
-    while attempt < max_retries:
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            log(f"🤖 Gemini 요청 시작 (Key #{current_key_index + 1}, 시도 {attempt + 1})...")
+            log(f"🤖 Gemini 요청 시작 (시도 {attempt + 1}/{max_retries})...")
             response = model.generate_content(prompt)
+            # 마크다운 중 링크([])는 살리고 나머지만 제거
             text = response.text.replace("**", "").replace("##", "").replace("###", "")
             return text
             
         except Exception as e:
             error_msg = str(e)
-            
-            # 429(Too Many Requests) 또는 Quota 에러 발생 시 키 교체
             if "429" in error_msg or "Quota" in error_msg or "ResourceExhausted" in error_msg:
-                log(f"⚠️ 현재 키(#{current_key_index + 1}) 한도 초과!")
-                
-                # 다음 키가 있는지 확인
-                if len(API_KEYS) > 1:
-                    # 다음 키로 인덱스 변경 (순환)
-                    current_key_index = (current_key_index + 1) % len(API_KEYS)
-                    log(f"♻️ 다음 키(#{current_key_index + 1})로 교체합니다...")
-                    configure_genai(current_key_index) # 모델 재설정
-                    time.sleep(2) # 교체 후 아주 잠깐 대기
-                    # retry 카운트는 늘리지 않고 바로 다시 시도 (키 바꿨으니까)
-                    continue 
-                else:
-                    # 키가 하나뿐이면 어쩔 수 없이 대기
-                    wait_time = 60
-                    log(f"⏳ 예비 키가 없습니다. {wait_time}초 대기합니다...")
-                    time.sleep(wait_time)
-                    attempt += 1
+                wait_time = 60 
+                log(f"⚠️ 사용량 초과(429). {wait_time}초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
             else:
-                log(f"⚠️ 알 수 없는 오류: {error_msg}")
+                log(f"⚠️ 알 수 없는 오류 발생: {error_msg}")
                 time.sleep(10)
-                attempt += 1
             
-    log("❌ 모든 키와 재시도 횟수를 소진했습니다. 실패.")
+    log("❌ 최대 재시도 횟수 초과. 요약 생성 실패.")
     sys.exit(1)
+
+# 👇 [핵심 기능] 텍스트 안에 있는 [제목](링크)를 찾아서 노션 링크 객체로 변환
+def parse_markdown_to_notion_blocks(text):
+    """
+    텍스트를 줄 단위로 분석하여 노션 블록 리스트를 생성합니다.
+    - 리스트(-, 1.) 처리
+    - 하이퍼링크([text](url)) 처리
+    - 이모지 헤더 처리
+    """
+    blocks = []
+    lines = text.split('\n')
+    
+    # 링크 찾기 정규식: [제목](주소)
+    link_pattern = re.compile(r'\[(.*?)\]\((.*?)\)')
+
+    for line in lines:
+        line = line.strip()
+        if not line: continue
+        
+        # 1. 블록 타입 결정
+        if line.startswith("- "):
+            block_type = "bulleted_list_item"
+            content = line[2:]
+        elif line[0].isdigit() and line[1:3] == ". ": # "1. " 패턴
+            block_type = "numbered_list_item"
+            content = line[3:]
+        elif line.startswith("💡") or line.startswith("🔥") or line.startswith("📰"):
+            block_type = "heading_3"
+            content = line
+        else:
+            block_type = "paragraph"
+            content = line
+
+        # 2. 텍스트 내부의 링크 파싱 (Rich Text 생성)
+        rich_text = []
+        last_idx = 0
+        
+        for match in link_pattern.finditer(content):
+            # 링크 앞의 일반 텍스트
+            if match.start() > last_idx:
+                rich_text.append({
+                    "type": "text",
+                    "text": {"content": content[last_idx:match.start()]}
+                })
+            
+            # 링크 텍스트 (클릭 가능하게 설정)
+            link_text = match.group(1)
+            link_url = match.group(2)
+            rich_text.append({
+                "type": "text",
+                "text": {
+                    "content": link_text,
+                    "link": {"url": link_url} # 🔗 여기가 핵심입니다!
+                }
+            })
+            last_idx = match.end()
+        
+        # 남은 텍스트 추가
+        if last_idx < len(content):
+            rich_text.append({
+                "type": "text",
+                "text": {"content": content[last_idx:]}
+            })
+            
+        # 매칭된 게 없으면 그냥 통째로 추가
+        if not rich_text:
+            rich_text.append({"type": "text", "text": {"content": content}})
+
+        # 3. 블록 생성
+        blocks.append({
+            "object": "block",
+            "type": block_type,
+            block_type: {
+                "rich_text": rich_text
+            }
+        })
+        
+    return blocks
 
 def create_summary_page_in_notion(summary_text, target_date):
     headers = {
@@ -167,9 +207,10 @@ def create_summary_page_in_notion(summary_text, target_date):
         "Notion-Version": "2022-06-28"
     }
     
-    if len(summary_text) > 2000:
-        summary_text = summary_text[:2000] + "..."
+    # 본문 파싱하여 블록 생성
+    content_blocks = parse_markdown_to_notion_blocks(summary_text)
 
+    # 최종 Payload 구성
     payload = {
         "parent": {"page_id": NOTION_PAGE_ID}, 
         "properties": {
@@ -180,6 +221,7 @@ def create_summary_page_in_notion(summary_text, target_date):
             }
         },
         "children": [
+            # 상단 제목 (Callout)
             {
                 "object": "block",
                 "type": "callout",
@@ -189,21 +231,13 @@ def create_summary_page_in_notion(summary_text, target_date):
                     "color": "gray_background"
                 }
             },
+            # 구분선
             {
                 "object": "block",
-                "type": "heading_2",
-                "heading_2": {
-                    "rich_text": [{"type": "text", "text": {"content": "오늘의 트렌드 분석"}}]
-                }
-            },
-            {
-                "object": "block",
-                "type": "paragraph",
-                "paragraph": {
-                    "rich_text": [{"type": "text", "text": {"content": summary_text}}]
-                }
+                "type": "divider",
+                "divider": {}
             }
-        ]
+        ] + content_blocks  # 파싱된 본문 블록들 추가
     }
     
     url = "https://api.notion.com/v1/pages"
