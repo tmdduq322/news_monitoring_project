@@ -1,16 +1,23 @@
 import os
 import sys
 import time
-import re  # 👈 링크 파싱을 위한 정규표현식 모듈 추가
+import re
 import pymysql
 import requests
 import argparse
 import google.generativeai as genai
-from datetime import datetime, timedelta
-from extraction.core_utils import log
+from datetime import datetime
 
 # 1. 환경 변수 로드
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# 콤마(,)로 구분된 여러 개의 키를 리스트로 만듭니다.
+keys_env = os.getenv("GEMINI_API_KEYS") # .env에 GEMINI_API_KEYS=키1,키2 형식으로 저장
+if not keys_env:
+    # 혹시 기존 변수명(GEMINI_API_KEY)을 쓰고 있을 경우를 대비
+    keys_env = os.getenv("GEMINI_API_KEY")
+
+API_KEYS = keys_env.split(',') if keys_env else []
+current_key_index = 0
+
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 NOTION_PAGE_ID = os.getenv("NOTION_PAGE_ID") 
 DB_HOST = os.getenv("DB_HOST")
@@ -18,22 +25,34 @@ DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 
-# 로그 출력 함수
+# 로그 출력 함수 (즉시 출력)
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {message}", flush=True)
 
-if not GEMINI_API_KEY:
-    log("❌ GEMINI_API_KEY가 설정되지 않았습니다.")
+if not API_KEYS:
+    log("❌ GEMINI_API_KEYS가 설정되지 않았습니다.")
     sys.exit(1)
 
 if not NOTION_PAGE_ID:
     log("❌ NOTION_PAGE_ID가 설정되지 않았습니다.")
     sys.exit(1)
 
-# Gemini 설정
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.5-flash')
+# 초기 설정
+def configure_genai(key_index):
+    """지정된 인덱스의 키로 Gemini를 재설정합니다."""
+    global model
+    try:
+        current_key = API_KEYS[key_index].strip()
+        genai.configure(api_key=current_key)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        log(f"🔑 API Key #{key_index + 1} 적용 완료 (총 {len(API_KEYS)}개)")
+    except Exception as e:
+        log(f"❌ API Key 설정 중 오류: {e}")
+        sys.exit(1)
+
+# 최초 1회 설정
+configure_genai(current_key_index)
 
 def get_yesterday_data(target_date):
     """DB에서 해당 날짜의 주요 기사 제목 + URL 추출"""
@@ -65,7 +84,9 @@ def get_yesterday_data(target_date):
         conn.close()
 
 def generate_summary(data_list):
-    """제미나이를 이용한 트렌드 요약 생성"""
+    """제미나이를 이용한 트렌드 요약 생성 (키 로테이션 + 재시도)"""
+    global current_key_index
+    
     if not data_list:
         return "데이터가 없어 요약을 생성할 수 없습니다."
 
@@ -86,7 +107,7 @@ def generate_summary(data_list):
     3. (이슈 3)
 
     🔥 트렌드 분석
-    (사람들의 관심사가 어디에 쏠려있는지 2문장으로 자연스럽게 요약)
+    (사람들의 관심사가 어디에 쏠려있는지 3문장으로 자연스럽게 요약)
 
     📰 주요 뉴스 바로가기 (3개 추천)
     (위 이슈와 가장 관련성 높은 실제 기사 3개를 골라서 아래 형식으로 작성해)
@@ -100,29 +121,46 @@ def generate_summary(data_list):
     3. URL은 내가 제공한 [데이터]에 있는 것만 그대로 사용해야 해. 절대 지어내지 마.
     """
     
-    max_retries = 3
-    for attempt in range(max_retries):
+    max_retries = 3 # 키가 많으면 시도 횟수도 넉넉하게
+    attempt = 0
+    
+    while attempt < max_retries:
         try:
-            log(f"🤖 Gemini 요청 시작 (시도 {attempt + 1}/{max_retries})...")
+            log(f"🤖 Gemini 요청 시작 (Key #{current_key_index + 1}, 시도 {attempt + 1})...")
             response = model.generate_content(prompt)
-            # 마크다운 중 링크([])는 살리고 나머지만 제거
             text = response.text.replace("**", "").replace("##", "").replace("###", "")
             return text
             
         except Exception as e:
             error_msg = str(e)
-            if "429" in error_msg or "Quota" in error_msg or "ResourceExhausted" in error_msg:
-                wait_time = 60 
-                log(f"⚠️ 사용량 초과(429). {wait_time}초 대기 후 재시도... ({attempt + 1}/{max_retries})")
-                time.sleep(wait_time)
-            else:
-                log(f"⚠️ 알 수 없는 오류 발생: {error_msg}")
-                time.sleep(10)
             
-    log("❌ 최대 재시도 횟수 초과. 요약 생성 실패.")
+            # 429(Too Many Requests) 또는 Quota 에러 발생 시 키 교체
+            if "429" in error_msg or "Quota" in error_msg or "ResourceExhausted" in error_msg:
+                log(f"⚠️ 현재 키(#{current_key_index + 1}) 한도 초과!")
+                
+                # 다음 키가 있는지 확인
+                if len(API_KEYS) > 1:
+                    # 다음 키로 인덱스 변경 (순환)
+                    current_key_index = (current_key_index + 1) % len(API_KEYS)
+                    log(f"♻️ 다음 키(#{current_key_index + 1})로 교체합니다...")
+                    configure_genai(current_key_index) # 모델 재설정
+                    time.sleep(2) # 교체 후 아주 잠깐 대기
+                    # retry 카운트는 늘리지 않고 바로 다시 시도 (키 바꿨으니까)
+                    continue 
+                else:
+                    # 키가 하나뿐이면 어쩔 수 없이 대기
+                    wait_time = 60
+                    log(f"⏳ 예비 키가 없습니다. {wait_time}초 대기합니다...")
+                    time.sleep(wait_time)
+                    attempt += 1
+            else:
+                log(f"⚠️ 알 수 없는 오류: {error_msg}")
+                time.sleep(10)
+                attempt += 1
+            
+    log("❌ 모든 키와 재시도 횟수를 소진했습니다. 실패.")
     sys.exit(1)
 
-# 👇 [핵심 기능] 텍스트 안에 있는 [제목](링크)를 찾아서 노션 링크 객체로 변환
 def parse_markdown_to_notion_blocks(text):
     """
     텍스트를 줄 단위로 분석하여 노션 블록 리스트를 생성합니다.
@@ -266,6 +304,15 @@ def run_gemini_pipeline(target_date):
     create_summary_page_in_notion(summary, target_date)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--date", help="데이터 조회 대상 날짜 (YYYY-MM-DD)")
+    args = parser.parse_args()
+
+    if args.date:
+        run_gemini_pipeline(args.date)
+    else:
+        log("⚠️ 날짜(--date) 파라미터가 필요합니다.")
+        sys.exit(1)
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", help="데이터 조회 대상 날짜 (YYYY-MM-DD)")
     args = parser.parse_args()
