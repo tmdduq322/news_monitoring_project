@@ -19,7 +19,7 @@ with DAG(
     dag_id='news_copy_detection_pipeline',
     default_args=default_args,
     start_date=datetime(2025, 11, 21),
-    schedule='@daily',
+    schedule='10 15 * * *',
     catchup=False,
     tags=['news', 'copy-detection'],
     # 전체 DAG 수준에서도 동시에 돌아가는 태스크 수 제한 (안전을 위해 2로 설정)
