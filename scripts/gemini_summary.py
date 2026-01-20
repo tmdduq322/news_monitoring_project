@@ -128,6 +128,7 @@ def generate_summary(data_list):
         try:
             log(f"🤖 Gemini 요청 시작 (Key #{current_key_index + 1}, 시도 {attempt + 1})...")
             response = model.generate_content(prompt)
+            # 마크다운 중 링크([])는 살리고 나머지만 제거
             text = response.text.replace("**", "").replace("##", "").replace("###", "")
             return text
             
@@ -145,7 +146,7 @@ def generate_summary(data_list):
                     log(f"♻️ 다음 키(#{current_key_index + 1})로 교체합니다...")
                     configure_genai(current_key_index) # 모델 재설정
                     time.sleep(2) # 교체 후 아주 잠깐 대기
-                    # retry 카운트는 늘리지 않고 바로 다시 시도 (키 바꿨으니까)
+                    # retry 카운트는 늘리지 않고 바로 다시 시도
                     continue 
                 else:
                     # 키가 하나뿐이면 어쩔 수 없이 대기
@@ -211,7 +212,7 @@ def parse_markdown_to_notion_blocks(text):
                 "type": "text",
                 "text": {
                     "content": link_text,
-                    "link": {"url": link_url} # 🔗 여기가 핵심입니다!
+                    "link": {"url": link_url} # 🔗 노션 하이퍼링크 속성
                 }
             })
             last_idx = match.end()
@@ -304,15 +305,6 @@ def run_gemini_pipeline(target_date):
     create_summary_page_in_notion(summary, target_date)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--date", help="데이터 조회 대상 날짜 (YYYY-MM-DD)")
-    args = parser.parse_args()
-
-    if args.date:
-        run_gemini_pipeline(args.date)
-    else:
-        log("⚠️ 날짜(--date) 파라미터가 필요합니다.")
-        sys.exit(1)
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", help="데이터 조회 대상 날짜 (YYYY-MM-DD)")
     args = parser.parse_args()
