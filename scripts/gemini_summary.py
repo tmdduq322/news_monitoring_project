@@ -55,13 +55,12 @@ def get_yesterday_data(target_date):
     conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, db=DB_NAME, charset='utf8mb4')
     try:
         with conn.cursor() as cursor:
+            # 안전장치: LIMIT 200으로 제한
             sql = f"""
                 SELECT keyword, title, original_article_url
                 FROM news_posts 
-                WHERE DATE(crawled_at) = '{target_date}' 
-                AND copy_rate > 0.3
-                ORDER BY copy_rate DESC 
-                LIMIT 200
+                WHERE DATE(crawled_at) = '{target_date}'
+                ORDER BY copy_rate DESC LIMIT 200
             """
             cursor.execute(sql)
             results = cursor.fetchall()
@@ -87,7 +86,6 @@ def generate_summary(data_list):
 
     context = "\n".join(data_list)
     
-    # [프롬프트 수정] 5가지 이슈/URL 요청 및 정치/안보 이슈 볼드 처리 지시
     prompt = f"""
     너는 뉴스 데이터 분석가야. 아래 데이터를 바탕으로 트렌드를 요약해줘.
     
@@ -113,7 +111,7 @@ def generate_summary(data_list):
     - [기사 제목 전체](기사 URL)
 
     [주의사항]
-    1. 핵심이슈의 주제 부분은 **굵게** 표시해서 강조해줘. (예: **여야 갈등 심화**)
+    1. 각 이슈의 **핵심 주제나 키워드**는 문장 앞부분에 **굵게** 표시해서 강조해줘. (예: **핵심 주제** 내용 설명...)
     2. 링크는 반드시 [제목](주소) 형식을 지킬 것.
     3. 그 외 불필요한 마크다운 헤더(## 등)는 사용하지 마.
     """
@@ -125,7 +123,6 @@ def generate_summary(data_list):
         try:
             log(f"🤖 Gemini 요청 시작 (Key #{current_key_index + 1}, 시도 {attempt + 1})...")
             response = model.generate_content(prompt)
-            # **(볼드)는 살리고, ##(헤더)만 제거
             text = response.text.replace("##", "").replace("###", "")
             return text
             
@@ -152,23 +149,28 @@ def generate_summary(data_list):
     log("❌ 실패: 모든 재시도 소진.")
     sys.exit(1)
 
-# 👇 [핵심 기능 강화] 볼드(**)와 하이퍼링크([]) 동시 파싱 로직
 def parse_markdown_to_notion_blocks(text):
+    """
+    텍스트를 노션 블록으로 변환 (디자인 강화 버전)
+    - 구분선 추가
+    - 헤더 크기 확대 (H3 -> H2)
+    - 트렌드 분석은 '인용구(Quote)' 블록으로 변환하여 강조
+    """
     blocks = []
     lines = text.split('\n')
     
-    # 1. 통합 패턴: (**볼드**) 또는 ([링크](주소))
-    # 순서: 볼드 먼저 체크하고, 그 다음 링크 체크
+    # 정규식 패턴 (볼드 & 링크)
     pattern = re.compile(r'(\*\*(?P<bold>.*?)\*\*)|(\[(?P<link_text>.*?)\]\s*\((?P<link_url>https?://.*?)\))')
-    
-    # 2. 백업용 링크 패턴 (형식이 깨진 경우: 제목 (주소))
     fallback_link_pattern = re.compile(r'(.*)\s*\((https?://.*?)\)')
+
+    # 현재 처리 중인 섹션 추적용 (trend, normal)
+    current_section = "normal" 
 
     for line in lines:
         line = line.strip()
         if not line: continue
         
-        # 블록 타입 결정
+        # 1. 블록 타입 및 디자인 결정
         if line.startswith("- "):
             block_type = "bulleted_list_item"
             content = line[2:]
@@ -176,23 +178,35 @@ def parse_markdown_to_notion_blocks(text):
             block_type = "numbered_list_item"
             content = line[3:]
         elif line.startswith("💡") or line.startswith("🔥") or line.startswith("📰"):
-            block_type = "heading_3"
+            # ✨ [디자인] 섹션이 바뀔 때마다 위에 구분선 추가 (맨 처음 제외)
+            if blocks: 
+                blocks.append({"object": "block", "type": "divider", "divider": {}})
+            
+            block_type = "heading_2" # ✨ [디자인] 제목을 H2로 키움
             content = line
+            
+            # 섹션 상태 변경
+            if line.startswith("🔥"):
+                current_section = "trend"
+            else:
+                current_section = "normal"
         else:
-            block_type = "paragraph"
+            # ✨ [디자인] 트렌드 분석 섹션의 본문은 '인용구'로 처리해 있어 보이게 함
+            if current_section == "trend":
+                block_type = "quote"
+            else:
+                block_type = "paragraph"
             content = line
 
+        # 2. Rich Text 파싱 (볼드, 링크 적용)
         rich_text = []
         last_idx = 0
         
-        # 정규표현식으로 볼드와 링크 찾기
         matches = list(pattern.finditer(content))
         
-        # 매칭된 게 하나도 없는데 URL이 포함된 경우 -> 백업 패턴 시도
         if not matches and "http" in content:
             fallback_match = fallback_link_pattern.search(content)
             if fallback_match:
-                # 백업 패턴은 단순 텍스트 + 링크로 처리
                 pre_text = fallback_match.group(1).strip()
                 url = fallback_match.group(2).strip()
                 if pre_text:
@@ -201,45 +215,44 @@ def parse_markdown_to_notion_blocks(text):
                     "type": "text", 
                     "text": {"content": pre_text if not pre_text else "링크", "link": {"url": url}}
                 })
-                # 처리 완료로 간주
                 matches = [] 
                 last_idx = len(content) 
 
         for match in matches:
-            # 매칭 앞부분 일반 텍스트 추가
             if match.start() > last_idx:
                 rich_text.append({"type": "text", "text": {"content": content[last_idx:match.start()]}})
             
-            if match.group('bold'): # **볼드** 매칭
+            if match.group('bold'):
                 rich_text.append({
                     "type": "text",
                     "text": {"content": match.group('bold')},
-                    "annotations": {"bold": True} # ✨ 노션 볼드 적용
+                    "annotations": {"bold": True} # 볼드
                 })
-            elif match.group('link_url'): # [링크](주소) 매칭
+            elif match.group('link_url'):
                 rich_text.append({
                     "type": "text",
                     "text": {
                         "content": match.group('link_text'),
-                        "link": {"url": match.group('link_url')} # 🔗 노션 링크 적용
+                        "link": {"url": match.group('link_url')} # 링크
                     }
                 })
             
             last_idx = match.end()
         
-        # 남은 뒷부분 텍스트 추가
         if last_idx < len(content):
             rich_text.append({"type": "text", "text": {"content": content[last_idx:]}})
             
-        # rich_text가 비었으면 원본 그대로 (안전장치)
         if not rich_text:
             rich_text.append({"type": "text", "text": {"content": content}})
 
+        # 3. 블록 생성
         blocks.append({
             "object": "block",
             "type": block_type,
             block_type: {
-                "rich_text": rich_text
+                "rich_text": rich_text,
+                # 헤딩의 경우 색상을 입힐 수도 있음 (원하면 주석 해제)
+                # "color": "blue_background" if block_type == "heading_2" else "default"
             }
         })
         
@@ -252,7 +265,6 @@ def create_summary_page_in_notion(summary_text, target_date):
         "Notion-Version": "2022-06-28"
     }
     
-    # 파싱된 블록 생성
     content_blocks = parse_markdown_to_notion_blocks(summary_text)
 
     payload = {
@@ -274,11 +286,7 @@ def create_summary_page_in_notion(summary_text, target_date):
                     "color": "gray_background"
                 }
             },
-            {
-                "object": "block",
-                "type": "divider",
-                "divider": {}
-            }
+            # 첫 번째 구분선은 여기서 제거 (함수 안에서 자동 처리됨)
         ] + content_blocks
     }
     
