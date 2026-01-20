@@ -85,7 +85,7 @@ def generate_summary(data_list):
 
     context = "\n".join(data_list)
     
-    # [프롬프트 수정] 링크 형식을 더 명확하게 지시
+    # [프롬프트 수정] 5가지 이슈/URL 요청 및 정치/안보 이슈 볼드 처리 지시
     prompt = f"""
     너는 뉴스 데이터 분석가야. 아래 데이터를 바탕으로 트렌드를 요약해줘.
     
@@ -101,7 +101,7 @@ def generate_summary(data_list):
     5. (이슈 5)
 
     🔥 트렌드 분석
-    (관심사 분석)
+    (관심사 분석 3문장)
 
     📰 주요 뉴스 바로가기 (5개 추천)
     - [기사 제목 전체](기사 URL)
@@ -111,8 +111,9 @@ def generate_summary(data_list):
     - [기사 제목 전체](기사 URL)
 
     [주의사항]
-    1. 마크다운 문법(굵게 등) 금지. 단, 링크는 반드시 [제목](주소) 형식을 지킬 것.
-    2. 링크 생성 시 [제목]과 (주소) 사이에 띄어쓰기를 하지 마시오.
+    1. '국내 정치권 논란'이나 '안보 이슈'와 관련된 내용은 **굵게** 표시해서 강조해줘. (예: **여야 갈등 심화**)
+    2. 링크는 반드시 [제목](주소) 형식을 지킬 것.
+    3. 그 외 불필요한 마크다운 헤더(## 등)는 사용하지 마.
     """
     
     max_retries = 3
@@ -122,8 +123,8 @@ def generate_summary(data_list):
         try:
             log(f"🤖 Gemini 요청 시작 (Key #{current_key_index + 1}, 시도 {attempt + 1})...")
             response = model.generate_content(prompt)
-            # 링크 포맷([])을 제외한 나머지 마크다운 제거
-            text = response.text.replace("**", "").replace("##", "").replace("###", "")
+            # **(볼드)는 살리고, ##(헤더)만 제거
+            text = response.text.replace("##", "").replace("###", "")
             return text
             
         except Exception as e:
@@ -149,19 +150,17 @@ def generate_summary(data_list):
     log("❌ 실패: 모든 재시도 소진.")
     sys.exit(1)
 
-# 👇 [핵심 기능 강화] 하이퍼링크 파싱 로직 업그레이드
+# 👇 [핵심 기능 강화] 볼드(**)와 하이퍼링크([]) 동시 파싱 로직
 def parse_markdown_to_notion_blocks(text):
     blocks = []
     lines = text.split('\n')
     
-    # 패턴 1: 정상적인 마크다운 링크 [제목](주소) - 띄어쓰기 허용
-    # \[([^\]]+)\] : 대괄호 안의 내용 (제목)
-    # \s* : 중간에 공백이 있어도 됨
-    # \((https?://[^)]+)\) : 소괄호 안의 http로 시작하는 주소
-    link_pattern = re.compile(r'\[(.*?)\]\s*\((https?://.*?)\)')
+    # 1. 통합 패턴: (**볼드**) 또는 ([링크](주소))
+    # 순서: 볼드 먼저 체크하고, 그 다음 링크 체크
+    pattern = re.compile(r'(\*\*(?P<bold>.*?)\*\*)|(\[(?P<link_text>.*?)\]\s*\((?P<link_url>https?://.*?)\))')
     
-    # 패턴 2: 괄호만 쳐진 URL (백업용) -> "텍스트 (URL)" 형태
-    fallback_pattern = re.compile(r'(.*)\s*\((https?://.*?)\)')
+    # 2. 백업용 링크 패턴 (형식이 깨진 경우: 제목 (주소))
+    fallback_link_pattern = re.compile(r'(.*)\s*\((https?://.*?)\)')
 
     for line in lines:
         line = line.strip()
@@ -182,38 +181,56 @@ def parse_markdown_to_notion_blocks(text):
             content = line
 
         rich_text = []
+        last_idx = 0
         
-        # 1. 마크다운 링크 패턴 시도 [제목](주소)
-        match = link_pattern.search(content)
+        # 정규표현식으로 볼드와 링크 찾기
+        matches = list(pattern.finditer(content))
         
-        # 2. 실패 시 백업 패턴 시도 "제목 (주소)"
-        if not match:
-            fallback_match = fallback_pattern.search(content)
-            # URL 형식이 맞고, 앞부분(제목)이 너무 짧지 않으면 링크로 인정
+        # 매칭된 게 하나도 없는데 URL이 포함된 경우 -> 백업 패턴 시도
+        if not matches and "http" in content:
+            fallback_match = fallback_link_pattern.search(content)
             if fallback_match:
-                match = fallback_match
+                # 백업 패턴은 단순 텍스트 + 링크로 처리
+                pre_text = fallback_match.group(1).strip()
+                url = fallback_match.group(2).strip()
+                if pre_text:
+                    rich_text.append({"type": "text", "text": {"content": pre_text + " "}})
+                rich_text.append({
+                    "type": "text", 
+                    "text": {"content": pre_text if not pre_text else "링크", "link": {"url": url}}
+                })
+                # 처리 완료로 간주
+                matches = [] 
+                last_idx = len(content) 
 
-        if match:
-            # 링크가 있는 경우
-            # group(1): 제목, group(2): URL
-            title_text = match.group(1).replace("[", "").replace("]", "").strip() # 제목에 남은 대괄호 제거
-            url_text = match.group(2).strip()
+        for match in matches:
+            # 매칭 앞부분 일반 텍스트 추가
+            if match.start() > last_idx:
+                rich_text.append({"type": "text", "text": {"content": content[last_idx:match.start()]}})
             
-            # 링크 앞부분 텍스트 (있다면)
-            pre_text = content[:match.start()].strip()
-            if pre_text:
-                rich_text.append({"type": "text", "text": {"content": pre_text + " "}})
-                
-            # 링크 부분 (클릭 가능하게)
-            rich_text.append({
-                "type": "text",
-                "text": {
-                    "content": title_text,
-                    "link": {"url": url_text} # 🔗 하이퍼링크 적용
-                }
-            })
-        else:
-            # 링크가 없는 일반 텍스트
+            if match.group('bold'): # **볼드** 매칭
+                rich_text.append({
+                    "type": "text",
+                    "text": {"content": match.group('bold')},
+                    "annotations": {"bold": True} # ✨ 노션 볼드 적용
+                })
+            elif match.group('link_url'): # [링크](주소) 매칭
+                rich_text.append({
+                    "type": "text",
+                    "text": {
+                        "content": match.group('link_text'),
+                        "link": {"url": match.group('link_url')} # 🔗 노션 링크 적용
+                    }
+                })
+            
+            last_idx = match.end()
+        
+        # 남은 뒷부분 텍스트 추가
+        if last_idx < len(content):
+            rich_text.append({"type": "text", "text": {"content": content[last_idx:]}})
+            
+        # rich_text가 비었으면 원본 그대로 (안전장치)
+        if not rich_text:
             rich_text.append({"type": "text", "text": {"content": content}})
 
         blocks.append({
@@ -241,7 +258,7 @@ def create_summary_page_in_notion(summary_text, target_date):
         "properties": {
             "title": { 
                 "title": [
-                    {"text": {"content": f"🤖 {target_date} AI 요약 리포트"}}
+                    {"text": {"content": f"📰 {target_date} 어제의 이슈"}}
                 ]
             }
         },
@@ -250,8 +267,8 @@ def create_summary_page_in_notion(summary_text, target_date):
                 "object": "block",
                 "type": "callout",
                 "callout": {
-                    "rich_text": [{"type": "text", "text": {"content": "Gemini 2.5 Flash 뉴스 요약"}}],
-                    "icon": {"emoji": "📰"},
+                    "rich_text": [{"type": "text", "text": {"content": "Gemini  뉴스 요약"}}],
+                    "icon": {"emoji": "🤖"},
                     "color": "gray_background"
                 }
             },
