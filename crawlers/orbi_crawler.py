@@ -69,7 +69,7 @@ def orbi_crw(wd, url, search, target_date):
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
         except:
             # 실패 시 수집 당일 날짜로 대체하거나 None
-            date_obj = datetime.now()
+            date_obj = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
         # 데이터 반환 (저장은 main에서 일괄 처리 권장하지만, 기존 구조 유지를 위해 Dict 반환)
         return {
