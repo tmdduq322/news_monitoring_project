@@ -218,7 +218,7 @@ services:
   airflow-webserver:
     <<: *airflow-common
     depends_on:
-      news_mysql_db:
+      mysql:
         condition: service_healthy # DB의 healthcheck가 통과될 때까지 대기
     restart: always
     command: webserver
