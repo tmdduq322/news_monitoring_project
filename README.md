@@ -111,7 +111,7 @@ DB_NAME=airflow_db
 NAVER_CLIENT_ID=your_client_id
 NAVER_CLIENT_SECRET=your_client_secret
 
-GEMINI_API_KEY=your_gemini_api_key 
+GEMINI_API_KEYS=your_gemini_api_key 
 
 # Notion Configuration
 NOTION_TOKEN=your_notion_token      
