@@ -33,7 +33,9 @@ def process_data(
         print(f"❌ 파일을 찾을 수 없습니다: {input_csv_path}")
         return None
 
-    df['게시물 등록일자'] = pd.to_datetime(df['게시물 등록일자'], errors='coerce')
+    # 👇 [수정] format='mixed'를 추가하여 다양한 날짜 형식을 모두 인식하도록 변경
+    df['게시물 등록일자'] = pd.to_datetime(df['게시물 등록일자'], errors='coerce', format='mixed')
+    
     df["게시물 제목"] = df["게시물 제목"].fillna("").astype(str)
     df["게시물 내용"] = df["게시물 내용"].fillna("").astype(str)
 
