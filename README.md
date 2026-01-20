@@ -18,7 +18,7 @@
     * **Gemini API:** 수집 데이터 기반 일별 주요 관심사 및 트렌드 분석
 
 ### **Pipeline Flow (Airflow DAG)**
-1.  **Parallel Crawling:** 24개 커뮤니티를 트래픽 규모에 따라 3개 그룹(Heavy, Medium, Light)으로 나누어 멀티프로세싱 병렬 수집
+1.  **Parallel Crawling:** 24개 커뮤니티를 트래픽 규모에 따라 2개 그룹으로 나누어 멀티프로세싱 병렬 수집
 2.  **Data Merge:** 분산 수집된 Raw Data를 날짜별로 병합
 3.  **Preprocessing:** 텍스트 정제(Cleaning) 및 데이터 포맷팅 (Excel 변환)
 4.  **Original Article Extraction:**
