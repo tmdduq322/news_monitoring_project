@@ -1,7 +1,7 @@
-# 📰 News Copy Detection Pipeline
-> **커뮤니티 뉴스 불펌 탐지 및 네티즌 관심 뉴스 추적 데이터 파이프라인**
+# 📰 AI News Monitoring & Trend Analysis Pipeline
+> **24개 커뮤니티 데이터의 실시간 수집, 뉴스 복제 탐지 및 Gemini AI 기반 트렌드 요약 자동화 시스템**
 
-이 프로젝트는 뽐뿌, 클리앙, 인벤 등 국내 주요 24개 커뮤니티의 게시글을 수집하고, 네이버 뉴스 API와 텍스트 유사도 분석(TF-IDF)을 통해 **국내 네티즌의 관심 뉴스 기사를 탐지**하여 DB, notion에 적재하는 자동화 시스템입니다.
+이 프로젝트는 국내 주요 24개 커뮤니티의 게시글을 실시간으로 수집하고, 뉴스 복제 여부를 탐지(TF-IDF)할 뿐만 아니라, 생성형 AI인 Gemini를 활용해 당일의 핵심 이슈를 자동으로 요약하여 노션 대시보드에 리포팅하는 End-to-End 데이터 파이프라인입니다.
 
 ---
 
@@ -13,9 +13,12 @@
 * **AWS Cloud (Storage & DB):**
     * **S3:** Raw Data(CSV), Processed Data, Extracted Results 등 단계별 데이터 저장 (Data Lake)
     * **RDS (MySQL):** 최종 분석 결과 및 메타데이터 저장 (Data Warehouse)
+* **External Integration (Reporting):**
+    * **Notion API:** 날짜별 모니터링 데이터베이스 자동 생성 및 리포팅
+    * **Gemini API:** 수집 데이터 기반 일별 주요 관심사 및 트렌드 분석
 
 ### **Pipeline Flow (Airflow DAG)**
-1.  **Parallel Crawling:** 24개 커뮤니티를 트래픽 규모에 따라 3개 그룹(Heavy, Medium, Light)으로 나누어 멀티프로세싱 병렬 수집
+1.  **Parallel Crawling:** 24개 커뮤니티를 트래픽 규모에 따라 2개 그룹으로 나누어 멀티프로세싱 병렬 수집
 2.  **Data Merge:** 분산 수집된 Raw Data를 날짜별로 병합
 3.  **Preprocessing:** 텍스트 정제(Cleaning) 및 데이터 포맷팅 (Excel 변환)
 4.  **Original Article Extraction:**
@@ -23,6 +26,8 @@
     * TF-IDF & Cosine Similarity 기반 본문 유사도(Copy Rate) 산출
     * 결과 데이터 S3 업로드
 5.  **Load to DB:** S3에 저장된 최종 분석 결과를 AWS RDS(MySQL)로 적재
+6.  **Notion Reporting**: 노션 API를 통해 당일 날짜의 데이터베이스를 생성하고 분석 결과 전송
+7.  **AI Trend Summary**: Gemini가 DB 데이터를 분석하여 핵심 이슈 요약을 노션 페이지 상단에 자동 삽입
 
 ---
 
@@ -37,7 +42,7 @@
 | **Analysis (NLP)** | Scikit-learn (TF-IDF), KonLPy (Okt) |
 | **Infrastructure** | Docker, Docker Compose |
 | **Cloud (AWS)** | S3, RDS (MySQL) |
-
+| **Reporting** |	Notion API, GEMINI API |
 ---
 
 ## 📂 Project Structure
@@ -51,7 +56,9 @@ news_monitoring_project/
 │   ├── merge_all_raw_csv.py             # 수집 데이터 병합
 │   ├── process_data.py                  # 전처리 (processing 모듈 호출)
 │   ├── extract_original.py              # 원문 추적 (extraction 모듈 호출)
-│   └── save_to_db.py                    # S3 -> RDS 데이터 적재
+│   ├── save_to_db.py                    # S3 -> RDS 데이터 적재
+│   ├── upload_to_notion.py              # 노션 데이터베이스 생성 및 데이터 업로드
+│   └── gemini_summary.py                # Gemini API 기반 트렌드 분석 및 요약
 ├── crawlers/                            # 커뮤니티별 크롤러 모듈 (24개 사이트)
 │   ├── pp_crawler.py                    # 뽐뿌 크롤러
 │   ├── clien_crawler.py                 # 클리앙 크롤러
@@ -104,8 +111,11 @@ DB_NAME=airflow_db
 NAVER_CLIENT_ID=your_client_id
 NAVER_CLIENT_SECRET=your_client_secret
 
-# Local Config
-CHROMEDRIVER_PATH=/usr/bin/chromedriver
+GEMINI_API_KEYS=your_gemini_api_key 
+
+# Notion Configuration
+NOTION_TOKEN=your_notion_token      
+NOTION_DATABASE_ID=your_parent_page_id
 
 
 ```
