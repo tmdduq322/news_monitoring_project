@@ -87,7 +87,7 @@ def generate_summary(data_list):
     3. 문장은 명확하고 간결하게 끝맺어줘.
     """
     
-   max_retries = 3 # 키가 많으면 시도 횟수도 넉넉하게
+    max_retries = 3 # 키가 많으면 시도 횟수도 넉넉하게
     attempt = 0
     
     while attempt < max_retries:
