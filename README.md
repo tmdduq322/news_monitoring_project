@@ -42,7 +42,7 @@
 | **Analysis (NLP)** | Scikit-learn (TF-IDF), KonLPy (Okt) |
 | **Infrastructure** | Docker, Docker Compose |
 | **Cloud (AWS)** | S3, RDS (MySQL) |
-| **Reporting** |	Notion API |
+| **Reporting** |	Notion API, GEMINI API |
 ---
 
 ## 📂 Project Structure
