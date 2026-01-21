@@ -103,12 +103,12 @@ with DAG(
                     f'{{{{ ds }}}}', # 수집 날짜와 동일하게 어제 날짜 전달
     )
 
-    # 7. 제미나이 요약 + 노션 리포트 생성 (통합)
     gemini_summarize = BashOperator(
         task_id='gemini_summarize',
-        bash_command=f'export PYTHONUNBUFFERED=1; PYTHONPATH=/opt/airflow '
+        bash_command=f'export PYTHONUNBUFFERED=1; '
+                     f'export PYTHONPATH=/opt/airflow; '
                      f'python3 /opt/airflow/scripts/gemini_summary.py '
-                     f'--date "{{{{ ds }}}}"', # [유지] ds 사용
+                     f'--date "{{{{ ds }}}}"', 
         trigger_rule='all_success'
     )
     
