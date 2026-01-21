@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.bash import BashOperator
 import boto3
 from airflow.utils.task_group import TaskGroup
 from datetime import datetime, timedelta
