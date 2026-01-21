@@ -88,9 +88,10 @@ with DAG(
     # 5. DB 저장
     save_db = BashOperator(
         task_id='save_to_mysql',
-        bash_command=f'export PYTHONUNBUFFERED=1; PYTHONPATH=/opt/airflow '
+        bash_command=f'export PYTHONUNBUFFERED=1; '
+                     f'PYTHONPATH=/opt/airflow '
                      f'python3 /opt/airflow/scripts/save_to_db.py '
-                     f"--input_file s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ macros.ds_format(ds, '%Y-%m-%d', '%y%m%d') }}}}.csv " # [수정]
+                     f"--input_file s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ macros.ds_format(ds, '%Y-%m-%d', '%y%m%d') }}}}.csv "
                      f'--table_name news_posts',
         trigger_rule='all_success'
     )
