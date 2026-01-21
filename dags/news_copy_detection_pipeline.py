@@ -1,5 +1,6 @@
 from airflow import DAG
-from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
+import boto3
 from airflow.utils.task_group import TaskGroup
 from datetime import datetime, timedelta
 import os
@@ -94,7 +95,13 @@ with DAG(
         trigger_rule='all_success'
     )
     
-    # 6. [삭제됨] Notion Upload 태스크는 Gemini 태스크로 흡수되었으므로 삭제
+    # 6. 노션 업로드 
+    notion_upload = BashOperator(
+        task_id='upload_to_notion',
+        bash_command=f'export PYTHONPATH=/opt/airflow; '
+                    f'python3 /opt/airflow/scripts/upload_to_notion.py '
+                    f'{{{{ ds }}}}', # 수집 날짜와 동일하게 어제 날짜 전달
+    )
 
     # 7. 제미나이 요약 + 노션 리포트 생성 (통합)
     gemini_summarize = BashOperator(
@@ -105,11 +112,11 @@ with DAG(
         trigger_rule='all_success'
     )
     
-    # 8. 인스턴스 종료
+    # 8. 인스턴스 종료 
     instance_stop = BashOperator(
-        task_id='instance_stop_now',
-        bash_command='sudo shutdown -h now', 
-        trigger_rule='all_done' 
-    )
+    task_id='instance_stop_now',
+    bash_command='python3 /opt/airflow/scripts/stop_ec2_instance.py',
+    trigger_rule='all_done' 
+)
 
-    crawl_group >> merge >> process >> extract_group >> save_db >> gemini_summarize >> instance_stop
+    crawl_group >> merge >> process >> extract_group >> save_db >> notion_upload >> gemini_summarize >> instance_stop
