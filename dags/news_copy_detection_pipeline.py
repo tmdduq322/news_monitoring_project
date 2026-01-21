@@ -117,6 +117,6 @@ with DAG(
     task_id='instance_stop_now',
     bash_command='python3 /opt/airflow/scripts/stop_ec2_instance.py',
     trigger_rule='all_done' 
-)
+    )
 
     crawl_group >> merge >> process >> extract_group >> save_db >> notion_upload >> gemini_summarize >> instance_stop
