@@ -1,10 +1,9 @@
-import os
-import boto3
-import requests
 from airflow import DAG
+from airflow.operators.bash import BashOperator
 from airflow.utils.task_group import TaskGroup
 from datetime import datetime, timedelta
-from airflow.operators.python import PythonOperator # BashOperator 대신 사용
+import os
+
 default_args = {
     'owner': 'data_engineer',
     'retries': 1,
