@@ -17,7 +17,7 @@ with DAG(
     dag_id='news_copy_detection_pipeline',
     default_args=default_args,
     start_date=datetime(2025, 11, 21),
-    schedule='15 0 * * *',  # 매일 00:15 실행
+    schedule='15 15 * * *',  # 매일 00:15 실행
     catchup=False,
     tags=['news', 'copy-detection'],
     max_active_tasks=2,
