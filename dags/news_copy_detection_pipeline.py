@@ -73,7 +73,7 @@ with DAG(
         bash_command=f'export PYTHONUNBUFFERED=1; '
                      f'PYTHONPATH=/opt/airflow '
                      f'python3 /opt/airflow/scripts/merge_all_raw_csv.py '
-                     f"--date {{{{ macros.ds_format(ds), '%Y-%m-%d', '%y%m%d') }}}}"
+                     f"--date {{{{ macros.ds_format(ds, '%Y-%m-%d', '%y%m%d') }}}}"
     )
     
 
