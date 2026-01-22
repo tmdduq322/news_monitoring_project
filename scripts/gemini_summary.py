@@ -6,8 +6,7 @@ import pymysql
 import requests
 import argparse
 import google.generativeai as genai
-from datetime import datetime
-
+from datetime import datetime, timedelta
 # 1. 환경 변수 로드
 keys_env = os.getenv("GEMINI_API_KEYS")
 if not keys_env:
@@ -261,6 +260,13 @@ def parse_markdown_to_notion_blocks(text):
     return blocks
 
 def create_summary_page_in_notion(summary_text, target_date):
+    try:
+        current_date_obj = datetime.strptime(target_date, "%Y-%m-%d")
+        report_date_obj = current_date_obj + timedelta(days=1)
+        report_date_str = report_date_obj.strftime("%Y-%m-%d") 
+    except ValueError:
+        #  날짜 형식이 이상하면 그냥 원본 사용
+        report_date_str = target_date
     headers = {
         "Authorization": f"Bearer {NOTION_TOKEN}",
         "Content-Type": "application/json",
@@ -274,7 +280,7 @@ def create_summary_page_in_notion(summary_text, target_date):
         "properties": {
             "title": { 
                 "title": [
-                    {"text": {"content": f"📰 {target_date} 어제의 이슈"}}
+                    {"text": {"content": f"📰 {report_date_str} 어제의 이슈"}}
                 ]
             }
         },

@@ -122,7 +122,7 @@ with DAG(
         task_id='upload_to_notion',
         bash_command=f'export PYTHONPATH=/opt/airflow; '
                     f'python3 /opt/airflow/scripts/upload_to_notion.py '
-                    f'{{{{ ds }}}}', # 수집 날짜와 동일하게 어제 날짜 전달
+                    f'{{{{ macros.ds_add(ds, -1) }}}}', # 수집 날짜와 동일하게 어제 날짜 전달
     )
 
     # 7. 제미나이 요약 (XCom에서 ID를 받아와 실행)
@@ -131,7 +131,7 @@ with DAG(
         bash_command=f'export PYTHONUNBUFFERED=1; '
                      f'export PYTHONPATH=/opt/airflow; '
                      f'python3 /opt/airflow/scripts/gemini_summary.py '
-                     f'--date "{{{{ ds }}}}"', 
+                     f'--date "{{{{macros.ds_add(ds, 1) }}}}"', 
         trigger_rule='all_success'
     )
     
