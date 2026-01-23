@@ -1,10 +1,11 @@
+import boto3
+import os
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.utils.task_group import TaskGroup
 from datetime import datetime, timedelta
-import os
 from airflow.operators.python import PythonOperator
-import boto3
+
 
 default_args = {
     'owner': 'data_engineer',
@@ -43,8 +44,8 @@ with DAG(
                          f'PYTHONPATH=/opt/airflow '
                          f'python3 /opt/airflow/scripts/crawl_all_sites.py '
                          f'--site "{group_1_sites}" '
-                         f'--start_date {{{{ ds }}}} '
-                         f'--end_date {{{{ ds }}}} '
+                         f'--start_date {{{{ data_interval_end | ds }}}} '
+                         f'--end_date {{{{ data_interval_end | ds }}}} '
                          f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
             # 사이트 수가 늘어났으므로 타임아웃을 넉넉하게 6시간으로 잡음
             execution_timeout=timedelta(hours=6)
@@ -61,8 +62,8 @@ with DAG(
                          f'PYTHONPATH=/opt/airflow '
                          f'python3 /opt/airflow/scripts/crawl_all_sites.py '
                          f'--site "{group_2_sites}" '
-                         f'--start_date {{{{ ds }}}} '
-                         f'--end_date {{{{ ds }}}} '
+                         f'--start_date {{{{ data_interval_end | ds }}}} '
+                         f'--end_date {{{{ data_interval_end | ds }}}} '
                          f'--search_excel /opt/airflow/config/search_keywords_2025.xlsx',
             execution_timeout=timedelta(hours=6)
         )
@@ -73,7 +74,7 @@ with DAG(
         bash_command=f'export PYTHONUNBUFFERED=1; '
                      f'PYTHONPATH=/opt/airflow '
                      f'python3 /opt/airflow/scripts/merge_all_raw_csv.py '
-                     f"--date {{{{ macros.ds_format(ds, '%Y-%m-%d', '%y%m%d') }}}}"
+                     f"--date {{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}"
     )
     
 
@@ -83,11 +84,11 @@ with DAG(
         bash_command=f'export PYTHONUNBUFFERED=1; '
                      f'PYTHONPATH=/opt/airflow '
                      f'python3 /opt/airflow/scripts/process_data.py '
-                     f"--input_csv data/merged/merged_raw_{{{{ macros.ds_format(ds, '%Y-%m-%d', '%y%m%d') }}}}.csv "
-                     f"--output_excel data/processed/전처리_{{{{ macros.ds_format(ds, '%Y-%m-%d', '%y%m%d') }}}}.xlsx "
+                     f"--input_csv data/merged/merged_raw_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.csv "
+                     f"--output_excel data/processed/전처리_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.xlsx "
                      f'--search_excel "/opt/airflow/config/search_keywords_2025.xlsx" '
-                     f"--year {{{{ macros.ds_format(ds, '%Y-%m-%d', '%Y') }}}} "
-                     f"--month {{{{ macros.ds_format(ds, '%Y-%m-%d', '%m') }}}}"
+                     f"--year {{{{ data_interval_end | ds_format('%Y-%m-%d', '%Y') }}}} "
+                     f"--month {{{{ data_interval_end | ds_format('%Y-%m-%d', '%m') }}}}"
     )
 
     # 4. 원문 추출 (결과는 S3로 전송)
@@ -99,8 +100,8 @@ with DAG(
                 bash_command=f'export PYTHONUNBUFFERED=1; '
                              f'PYTHONPATH=/opt/airflow '
                              f'python3 /opt/airflow/scripts/extract_original.py '
-                             f"--input_excel data/processed/전처리_{{{{ macros.ds_format(ds, '%Y-%m-%d', '%y%m%d') }}}}.xlsx "
-                             f"--output_csv s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ macros.ds_format(ds, '%Y-%m-%d', '%y%m%d') }}}}.csv "
+                             f"--input_excel data/processed/전처리_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.xlsx "
+                             f"--output_csv s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.csv "
                              f"--worker_id {i} "
                              f"--total_workers {EXTRACT_WORKER_COUNT}"
             )
@@ -112,7 +113,7 @@ with DAG(
         bash_command=f'export PYTHONUNBUFFERED=1; '
                      f'PYTHONPATH=/opt/airflow '
                      f'python3 /opt/airflow/scripts/save_to_db.py '
-                     f"--input_file s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ macros.ds_format(ds, '%Y-%m-%d', '%y%m%d') }}}}.csv "
+                     f"--input_file s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.csv "
                      f'--table_name news_posts',
         trigger_rule='all_success'
     )
@@ -122,7 +123,7 @@ with DAG(
         task_id='upload_to_notion',
         bash_command=f'export PYTHONPATH=/opt/airflow; '
                     f'python3 /opt/airflow/scripts/upload_to_notion.py '
-                    f'{{{{ ds }}}}', # 수집 날짜와 동일하게 어제 날짜 전달
+                    f'{{{{ data_interval_end | ds }}}}', # 수집 날짜와 동일하게 어제 날짜 전달
     )
 
     # 7. 제미나이 요약 (XCom에서 ID를 받아와 실행)
@@ -131,7 +132,7 @@ with DAG(
         bash_command=f'export PYTHONUNBUFFERED=1; '
                      f'export PYTHONPATH=/opt/airflow; '
                      f'python3 /opt/airflow/scripts/gemini_summary.py '
-                     f'--date "{{{{ ds }}}}"', 
+                     f'--date "{{{{ data_interval_end | ds }}}}"', 
         trigger_rule='all_success'
     )
     

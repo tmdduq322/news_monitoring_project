@@ -1,7 +1,7 @@
-import pandas as pd
 import requests
 import os
 import sys
+import pandas as pd
 from sqlalchemy import create_engine
 
 # 환경 변수 로드

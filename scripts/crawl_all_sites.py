@@ -7,7 +7,7 @@ import multiprocessing
 import time
 import glob
 
-# [중요] Airflow 및 로컬 환경 모두에서 모듈을 찾을 수 있도록 경로 설정
+#  경로 설정
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # 각 크롤러 모듈 임포트
