@@ -74,7 +74,7 @@ with DAG(
         bash_command=f'export PYTHONUNBUFFERED=1; '
                      f'PYTHONPATH=/opt/airflow '
                      f'python3 /opt/airflow/scripts/merge_all_raw_csv.py '
-                     f"--date {{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}"
+                     f'--date "{{{{ data_interval_end.strftime("%y%m%d") }}}}"'
     )
     
 
@@ -84,11 +84,11 @@ with DAG(
         bash_command=f'export PYTHONUNBUFFERED=1; '
                      f'PYTHONPATH=/opt/airflow '
                      f'python3 /opt/airflow/scripts/process_data.py '
-                     f"--input_csv data/merged/merged_raw_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.csv "
-                     f"--output_excel data/processed/전처리_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.xlsx "
+                     f"--input_csv data/merged/merged_raw_{{{{ data_interval_end.strftime('%y%m%d') }}}}.csv "
+                     f"--output_excel data/processed/전처리_{{{{ data_interval_end.strftime('%y%m%d') }}}}.xlsx "
                      f'--search_excel "/opt/airflow/config/search_keywords_2025.xlsx" '
-                     f"--year {{{{ data_interval_end | ds_format('%Y-%m-%d', '%Y') }}}} "
-                     f"--month {{{{ data_interval_end | ds_format('%Y-%m-%d', '%m') }}}}"
+                     f"--year {{{{ data_interval_end.strftime('%Y') }}}} "
+                     f"--month {{{{data_interval_end.strftime('%m') }}}}"
     )
 
     # 4. 원문 추출 (결과는 S3로 전송)
@@ -100,8 +100,8 @@ with DAG(
                 bash_command=f'export PYTHONUNBUFFERED=1; '
                              f'PYTHONPATH=/opt/airflow '
                              f'python3 /opt/airflow/scripts/extract_original.py '
-                             f"--input_excel data/processed/전처리_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.xlsx "
-                             f"--output_csv s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.csv "
+                             f"--input_excel data/processed/전처리_{{{{ data_interval_end.strftime('%y%m%d') }}}}.xlsx "
+                             f"--output_csv s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ data_interval_end.strftime('%y%m%d') }}}}.csv "
                              f"--worker_id {i} "
                              f"--total_workers {EXTRACT_WORKER_COUNT}"
             )
@@ -113,7 +113,7 @@ with DAG(
         bash_command=f'export PYTHONUNBUFFERED=1; '
                      f'PYTHONPATH=/opt/airflow '
                      f'python3 /opt/airflow/scripts/save_to_db.py '
-                     f"--input_file s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ data_interval_end | ds_format('%Y-%m-%d', '%y%m%d') }}}}.csv "
+                     f"--input_file s3://{BUCKET_NAME}/data/extracted/원문기사_{{{{ data_interval_end.strftime('%y%m%d') }}}}.csv "
                      f'--table_name news_posts',
         trigger_rule='all_success'
     )
