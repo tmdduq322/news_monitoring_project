@@ -46,10 +46,16 @@ def setup_driver():
     options.add_argument('--disable-blink-features=AutomationControlled')
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
-
     try:
-        service = Service(ChromeDriverManager().install())
+        
+        options.binary_location = "/usr/bin/chromium"
+        # 2. 시스템에 설치된 Chromedriver 사용 (다운로드 X)
+        service = Service("/usr/bin/chromedriver")
+        
+        # 3. 드라이버 실행
         driver = webdriver.Chrome(service=service, options=options)
+        # service = Service(ChromeDriverManager().install())
+        # driver = webdriver.Chrome(service=service, options=options)
         
         # [핵심 3] navigator.webdriver 속성 숨기기 (자바스크립트 탐지 우회)
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {

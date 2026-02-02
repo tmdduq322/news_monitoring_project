@@ -13,7 +13,7 @@ RUN apt-get update && \
     default-jdk \
     default-libmysqlclient-dev \
     build-essential \
-    pkg-config && \
+    pkg-config  \
     chromium \
     chromium-driver && \
     apt-get clean && \
