@@ -17,13 +17,19 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 3. Chrome 브라우저 설치
-# [핵심 수정] 여기에도 --fix-missing을 추가하여 의존성 설치 중 끊김을 방지합니다.
-RUN apt-get update && \
-    wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    apt-get install -y --fix-missing ./google-chrome-stable_current_amd64.deb && \
-    ln -sf /usr/bin/google-chrome /usr/bin/chromium && \
-    rm google-chrome-stable_current_amd64.deb && \
+# # 3. Chrome 브라우저 설치
+# # [핵심 수정] 여기에도 --fix-missing을 추가하여 의존성 설치 중 끊김을 방지합니다.
+# RUN apt-get update && \
+#     wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+#     apt-get install -y --fix-missing ./google-chrome-stable_current_amd64.deb && \
+#     ln -sf /usr/bin/google-chrome /usr/bin/chromium && \
+#     rm google-chrome-stable_current_amd64.deb && \
+#     apt-get clean && \
+#     rm -rf /var/lib/apt/lists/*
+
+# 3.Chromium 설치
+RUN chromium \
+    chromium-driver && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

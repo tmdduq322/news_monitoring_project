@@ -124,7 +124,6 @@ if __name__ == "__main__":
         os.makedirs(os.path.dirname(part_output_path), exist_ok=True)
 
     try:
-        # 인덱스 없이 깔끔하게 저장 (나중에 DB 저장 시 concat하면 됨)
         df.to_csv(part_output_path, index=False, encoding='utf-8-sig', storage_options=storage_options)
         
         # 임시 파일 삭제
