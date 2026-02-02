@@ -14,6 +14,8 @@ RUN apt-get update && \
     default-libmysqlclient-dev \
     build-essential \
     pkg-config && \
+    chromium \
+    chromium-driver && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -28,10 +30,6 @@ RUN apt-get update && \
 #     rm -rf /var/lib/apt/lists/*
 
 # 3.Chromium 설치
-RUN chromium \
-    chromium-driver && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
 
 # 4. JAVA_HOME 환경변수 설정
 ENV JAVA_HOME /usr/lib/jvm/default-java
